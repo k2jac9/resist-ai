@@ -22,8 +22,9 @@
 
 </div>
 
----
+![alt text](ResistAI-1.png)
 
+---
 ## The Problem
 
 Antimicrobial resistance (AMR) is an accelerating global health crisis.
