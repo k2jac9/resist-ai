@@ -48,6 +48,17 @@ recordings/
 *.avi
 *.mov
 
+# Demo and presentation documentation
+PRESENTATION_GUIDE.md
+QUICK_RECORD_GUIDE.md
+RECORDING_INSTRUCTIONS.md
+SUBMISSION_GUIDE.md
+TALKING_POINTS.md
+DEMO_SCRIPT.md
+DEMO_VIDEO_SCRIPT_V2.md
+resist_ai_notebooklm_source.txt
+ResistAI_Presentation.pptx
+
 # IDE
 .vscode/
 .idea/
