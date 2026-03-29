@@ -28,6 +28,7 @@ htmlcov/
 .claude-flow/
 .swarm/
 *.claude.json
+.mcp.json
 CLAUDE.md
 *claude*.md
 
@@ -56,6 +57,8 @@ SUBMISSION_GUIDE.md
 TALKING_POINTS.md
 DEMO_SCRIPT.md
 DEMO_VIDEO_SCRIPT_V2.md
+ALTERNATIVE_VIDEO_METHODS.md
+HACKATHON_SUBMISSION_CHECKLIST.md
 resist_ai_notebooklm_source.txt
 ResistAI_Presentation.pptx
 
