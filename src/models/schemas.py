@@ -297,6 +297,110 @@ class PipelineResults:
             "metadata": self.metadata,
         }
 
+
+# ---------------------------------------------------------------------------
+# Regulatory Intelligence
+# ---------------------------------------------------------------------------
+
+@dataclass
+class RegulatoryPathway:
+    """Predicted regulatory pathway for a drug candidate."""
+
+    pathway_type: str  # "505(b)(2)", "505(b)(1)", "OTC", "BLA"
+    timeline_years: tuple[float, float]  # (min, max)
+    cost_estimate_usd: tuple[int, int]  # (min, max)
+    success_rate: float  # 0.0 to 1.0
+    eligibility_criteria: list[str] = field(default_factory=list)
+    accelerated_options: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> RegulatoryPathway:
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
+class USPMonographInfo:
+    """USP-NF monograph information for a drug."""
+
+    drug_name: str
+    has_monograph: bool = False
+    monograph_id: str = ""
+    usp_category: str = ""  # API, Excipient, Dosage Form
+    generic_available: bool = False
+    last_updated: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> USPMonographInfo:
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
+class ModelExplanation:
+    """Explainability information for an AI model prediction."""
+
+    model_name: str
+    prediction: Any
+    confidence: float
+    reasoning_steps: list[str] = field(default_factory=list)
+    feature_importance: dict[str, float] = field(default_factory=dict)
+    citations: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["prediction"] = str(d["prediction"])  # Ensure JSON serializable
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ModelExplanation:
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
+class RegulatoryReport:
+    """Comprehensive regulatory intelligence report for a drug candidate."""
+
+    drug_name: str
+    smiles: str
+    target_name: str
+    pathway: RegulatoryPathway
+    usp_info: USPMonographInfo
+    qidp_eligible: bool = False
+    orphan_eligible: bool = False
+    fast_track_eligible: bool = False
+    breakthrough_eligible: bool = False
+    model_explanations: list[ModelExplanation] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "drug_name": self.drug_name,
+            "smiles": self.smiles,
+            "target_name": self.target_name,
+            "pathway": self.pathway.to_dict(),
+            "usp_info": self.usp_info.to_dict(),
+            "qidp_eligible": self.qidp_eligible,
+            "orphan_eligible": self.orphan_eligible,
+            "fast_track_eligible": self.fast_track_eligible,
+            "breakthrough_eligible": self.breakthrough_eligible,
+            "model_explanations": [e.to_dict() for e in self.model_explanations],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> RegulatoryReport:
+        pathway = RegulatoryPathway.from_dict(data.pop("pathway", {}))
+        usp_info = USPMonographInfo.from_dict(data.pop("usp_info", {}))
+        explanations_raw = data.pop("model_explanations", [])
+        explanations = [ModelExplanation.from_dict(e) if isinstance(e, dict) else e
+                       for e in explanations_raw]
+        filtered = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
+        return cls(**filtered, pathway=pathway, usp_info=usp_info,
+                  model_explanations=explanations)
+
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)
 
