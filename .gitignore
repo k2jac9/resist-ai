@@ -28,6 +28,8 @@ htmlcov/
 .claude-flow/
 .swarm/
 *.claude.json
+CLAUDE.md
+*claude*.md
 
 # Logs and temporary files
 *.log
