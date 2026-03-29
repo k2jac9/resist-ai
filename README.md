@@ -336,11 +336,11 @@ The pipeline generates structured output compatible with IND (Investigational Ne
 
 ---
 
-## Team
+## Team BioHack
 
 | Name | Role |
 |------|------|
-| **Ruv** | Architecture, AI pipeline, integration |
+| **Team BioHack** | Architecture, AI pipeline, integration |
 
 ---
 
