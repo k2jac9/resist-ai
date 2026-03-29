@@ -1,0 +1,16 @@
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+.git/
+.gitignore
+.claude-flow/
+.swarm/
+.claude/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/

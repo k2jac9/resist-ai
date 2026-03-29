@@ -1,0 +1,117 @@
+# AMR-AI Configuration
+app:
+  name: "AMR-AI"
+  version: "0.1.0"
+  description: "AI Drug Discovery Platform for Antimicrobial Resistance"
+
+# Nebius AI Studio (BioNeMo NIM)
+nebius:
+  base_url: "https://api.tokenfactory.nebius.com/v1"
+  # api_key loaded from NEBIUS_API_KEY env var
+  models:
+    boltz2: "boltz-2"
+    evo2: "evo2-40b"
+    molmim: "molmim"
+    genmol: "genmol"
+
+# ESM-2 (HuggingFace)
+esm2:
+  model_name: "facebook/esm2_t33_650M_UR50D"
+  embedding_dim: 1280
+
+# Target Discovery
+target_discovery:
+  default_pathogen: "acinetobacter_baumannii"
+  databases:
+    card_url: "https://card.mcmaster.ca/latest/data"
+    uniprot_base: "https://rest.uniprot.org"
+    pdb_base: "https://files.rcsb.org/download"
+
+# Drug Screening
+drug_screening:
+  max_compounds: 500
+  binding_threshold: 0.5  # affinity_probability_binary cutoff
+  databases:
+    chembl_base: "https://www.ebi.ac.uk/chembl/api/data"
+    drugbank_approved_count: 2700
+    drug_repurposing_hub: "https://s3.amazonaws.com/data.clue.io/repurposing/downloads/repurposing_drugs_20200324.txt"
+
+# Safety Prediction
+safety_prediction:
+  off_target_similarity_threshold: 0.7
+  admet_services:
+    pkcsm: "http://biosig.unimelb.edu.au/pkcsm/prediction"
+    swissadme: "http://www.swissadme.ch"
+  toxicity_endpoints:
+    - herg_inhibition
+    - hepatotoxicity
+    - ames_mutagenicity
+    - skin_sensitization
+    - acute_oral_toxicity
+
+# ESKAPE Pathogens - Primary Targets
+eskape_pathogens:
+  acinetobacter_baumannii:
+    name: "Acinetobacter baumannii"
+    who_priority: "critical"
+    resistance: "Carbapenem-resistant (CRAB)"
+    proteome_id: "UP000006737"
+    key_targets:
+      - name: "NDM-1"
+        pdb: "3SPU"
+        uniprot: "C7C422"
+        function: "Metallo-beta-lactamase (Class B)"
+        inhibitors: "No approved standalone inhibitor"
+      - name: "OXA-23"
+        pdb: "4JF4"
+        uniprot: "Q2L4R8"
+        function: "Class D beta-lactamase"
+      - name: "PBP3"
+        pdb: "6V1M"
+        uniprot: "A0A0D5YPF0"
+        function: "Peptidoglycan synthesis"
+      - name: "LpxC"
+        pdb: "3UHM"
+        function: "Lipid A biosynthesis"
+  staphylococcus_aureus:
+    name: "Staphylococcus aureus (MRSA)"
+    who_priority: "high"
+    resistance: "Methicillin-resistant"
+    proteome_id: "UP000008816"
+    key_targets:
+      - name: "PBP2a"
+        pdb: "1VQQ"
+        uniprot: "P07944"
+        function: "Altered PBP, beta-lactam resistance"
+      - name: "DNA Gyrase"
+        pdb: "2XCS"
+        uniprot: "P0A0K8"
+        function: "DNA replication"
+  klebsiella_pneumoniae:
+    name: "Klebsiella pneumoniae"
+    who_priority: "critical"
+    resistance: "Carbapenem-resistant"
+    proteome_id: "UP000007841"
+    key_targets:
+      - name: "KPC-2"
+        pdb: "5UL8"
+        uniprot: "Q6PT52"
+        function: "Class A carbapenemase"
+      - name: "NDM-1"
+        pdb: "3SPU"
+        uniprot: "C7C422"
+        function: "Metallo-beta-lactamase"
+  pseudomonas_aeruginosa:
+    name: "Pseudomonas aeruginosa"
+    who_priority: "critical"
+    resistance: "Carbapenem-resistant"
+    proteome_id: "UP000002438"
+    key_targets:
+      - name: "MexB"
+        pdb: "3W9I"
+        uniprot: "P52477"
+        function: "RND efflux pump"
+      - name: "LasR"
+        pdb: "2UV0"
+        uniprot: "P25084"
+        function: "Quorum sensing regulator"
