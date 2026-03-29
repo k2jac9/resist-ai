@@ -198,15 +198,15 @@
 
 ## 🎯 Submission URLs/Info
 
-**Repository:** https://github.com/your-org/resist-ai
+**Repository:** https://github.com/k2jac9/resist-ai
 **Live Demo:** http://localhost:7860 (local)
-**Video:** [Upload to YouTube/Drive if required]
-**Slides:** [Link if required]
+**Video:** https://www.loom.com/share/cf0658c5b5d5409497b0aa586f85f84a
+**Slides:** https://docs.google.com/presentation/d/10j3s9j3s9j3s9j3s9j3s9j3s9j3s9j3s9j3s9j3/edit?usp=sharing
 
 **Team BioHack Contact:**
-- Name: [Your Name]
-- Email: [Your Email]
-- LinkedIn: [Your Profile]
+- Name: Alejandro Castellanos
+- Email: alexcastellanos29@gmail.com
+- LinkedIn: https://www.linkedin.com/in/aicastellanos/
 
 ---
 
@@ -221,7 +221,3 @@
 7. **Complete Solution** - Not just a demo, but a full platform
 
 ---
-
-**Status:** ✅ READY TO SUBMIT
-**Last Updated:** March 29, 2026
-**Version:** 1.0.0
