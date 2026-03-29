@@ -8,7 +8,7 @@ except ImportError:
     raise SystemExit("gradio is required: pip install gradio>=4.8.0")
 
 from src.ui.common import PATHOGENS, _EXAMPLE_TARGETS, _EXAMPLE_DRUGS_SAFETY, _CSS
-from src.ui import tab_problem, tab_pipeline, tab_models, tab_safety, tab_viewer, tab_compare, tab_report
+from src.ui import tab_problem, tab_pipeline, tab_models, tab_safety, tab_viewer, tab_compare, tab_report, tab_regulatory
 from src.comparison import DIMENSIONS as _CMP_DIMS
 
 
@@ -200,4 +200,8 @@ def create_app() -> gr.Blocks:
                         f.write(j)
                     return p
                 btn6.click(_save, [ex5], [fo])
+
+            # ---- Regulatory Intelligence ----
+            tab_regulatory.create_regulatory_tab()
+
     return app

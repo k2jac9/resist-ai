@@ -56,6 +56,9 @@ from src.ui.tab_compare import (     # noqa: F401
 from src.ui.tab_report import (      # noqa: F401
     generate_report,
 )
+from src.ui.tab_regulatory import (  # noqa: F401
+    create_regulatory_tab,
+)
 from src.comparison import DIMENSIONS as _CMP_DIMS  # noqa: F401
 
 
