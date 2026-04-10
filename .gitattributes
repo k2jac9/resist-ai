@@ -1,0 +1,29 @@
+# Default: normalize all text files to LF in the repo
+* text=auto eol=lf
+
+# Shell scripts must always be LF
+*.sh text eol=lf
+
+# Windows-only scripts stay CRLF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files (never normalize)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+*.mp4 binary
+*.mov binary
+*.webm binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
