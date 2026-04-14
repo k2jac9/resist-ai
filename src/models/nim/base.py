@@ -103,6 +103,7 @@ class NIMBase:
                     json={}, timeout=5,
                 )
                 results[name] = resp.status_code in (200, 400, 422)
-            except Exception:
+            except Exception as exc:
+                logger.debug("NIM health_check %s unreachable: %s", name, exc)
                 results[name] = False
         return results

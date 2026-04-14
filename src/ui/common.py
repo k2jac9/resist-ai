@@ -1,7 +1,9 @@
 """Shared helpers, constants, and data for all UI tabs."""
 from __future__ import annotations
 import hashlib
+import logging
 import random
+import threading
 from typing import Any
 
 try:
@@ -9,8 +11,10 @@ try:
 except ImportError:
     pd = None
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
-# Lazy-loaded singletons
+# Thread-safe lazy singletons
 # ---------------------------------------------------------------------------
 _pmgr = None
 _orch = None
@@ -18,41 +22,56 @@ _llm = None
 _pmgr_loaded = False
 _orch_loaded = False
 _llm_loaded = False
+_pmgr_lock = threading.Lock()
+_orch_lock = threading.Lock()
+_llm_lock = threading.Lock()
 
 
 def get_pmgr():
     global _pmgr, _pmgr_loaded
-    if not _pmgr_loaded:
-        _pmgr_loaded = True
-        try:
-            from src.data.pathogens import PathogenManager
-            _pmgr = PathogenManager()
-        except Exception:
-            _pmgr = None
+    if _pmgr_loaded:
+        return _pmgr
+    with _pmgr_lock:
+        if not _pmgr_loaded:
+            try:
+                from src.data.pathogens import PathogenManager
+                _pmgr = PathogenManager()
+            except Exception as exc:
+                logger.warning("PathogenManager init failed: %s", exc, exc_info=True)
+                _pmgr = None
+            _pmgr_loaded = True
     return _pmgr
 
 
 def get_orch():
     global _orch, _orch_loaded
-    if not _orch_loaded:
-        _orch_loaded = True
-        try:
-            from src.pipeline.orchestrator import PipelineOrchestrator
-            _orch = PipelineOrchestrator()
-        except Exception:
-            _orch = None
+    if _orch_loaded:
+        return _orch
+    with _orch_lock:
+        if not _orch_loaded:
+            try:
+                from src.pipeline.orchestrator import PipelineOrchestrator
+                _orch = PipelineOrchestrator()
+            except Exception as exc:
+                logger.warning("PipelineOrchestrator init failed: %s", exc, exc_info=True)
+                _orch = None
+            _orch_loaded = True
     return _orch
 
 
 def get_llm():
     global _llm, _llm_loaded
-    if not _llm_loaded:
-        _llm_loaded = True
-        try:
-            from src.models.llm_client import NebisLLM
-            _llm = NebisLLM()
-        except Exception:
-            _llm = None
+    if _llm_loaded:
+        return _llm
+    with _llm_lock:
+        if not _llm_loaded:
+            try:
+                from src.models.llm_client import NebisLLM
+                _llm = NebisLLM()
+            except Exception as exc:
+                logger.warning("NebisLLM init failed: %s", exc, exc_info=True)
+                _llm = None
+            _llm_loaded = True
     return _llm
 
 

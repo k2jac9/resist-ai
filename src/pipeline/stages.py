@@ -31,18 +31,25 @@ def stage_genomics(nim: Any, sequence: str, num_tokens: int = 128) -> dict:
     return {"success": False}
 
 
-# Lazy-loaded ESM-2 client (heavy — 650M params)
+# Lazy-loaded ESM-2 client (heavy — 650M params); thread-safe
+import threading as _threading
+
 _esm2 = None
+_esm2_lock = _threading.Lock()
 
 
 def _get_esm2():
     global _esm2
-    if _esm2 is None:
-        try:
-            from src.pipeline.target_discovery.esm2_client import ESM2Client
-            _esm2 = ESM2Client()
-        except Exception as exc:
-            logger.warning("ESM-2 init failed: %s", exc)
+    if _esm2 is not None:
+        return _esm2
+    with _esm2_lock:
+        if _esm2 is None:
+            try:
+                from src.pipeline.target_discovery.esm2_client import ESM2Client
+                _esm2 = ESM2Client()
+            except Exception as exc:
+                logger.warning("ESM-2 init failed: %s", exc, exc_info=True)
+                _esm2 = None
     return _esm2
 
 

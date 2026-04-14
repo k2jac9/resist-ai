@@ -176,10 +176,24 @@ app.add_middleware(
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 _REQUIRED_KEY = os.environ.get("RESISTAI_API_KEY", "")
+_AUTH_STRICT = os.environ.get("RESISTAI_AUTH_STRICT", "").lower() in ("1", "true", "yes")
+
+if not _REQUIRED_KEY:
+    if _AUTH_STRICT:
+        raise RuntimeError(
+            "RESISTAI_AUTH_STRICT is enabled but RESISTAI_API_KEY is not set. "
+            "Set RESISTAI_API_KEY in the environment or disable RESISTAI_AUTH_STRICT."
+        )
+    logger.warning(
+        "RESISTAI_API_KEY is not set -- API endpoints are UNAUTHENTICATED. "
+        "Set RESISTAI_API_KEY in production, or set RESISTAI_AUTH_STRICT=1 to fail-closed."
+    )
 
 
 async def verify_api_key(api_key: Optional[str] = Security(_api_key_header)) -> Optional[str]:
-    """Validate X-API-Key header. Skip check if RESISTAI_API_KEY is not configured."""
+    """Validate X-API-Key header. If RESISTAI_API_KEY is unset, requests are
+    accepted (with a warning logged at startup). Set RESISTAI_AUTH_STRICT=1
+    to fail-closed when no key is configured."""
     if not _REQUIRED_KEY:
         return api_key
     if api_key != _REQUIRED_KEY:
@@ -201,26 +215,44 @@ async def timing_middleware(request: Request, call_next):
 
 
 # ---------------------------------------------------------------------------
-# Lazy-loaded clients (avoid import errors at module level)
+# Lazy-loaded clients (thread-safe; avoid import errors at module level)
 # ---------------------------------------------------------------------------
+
+import threading as _threading
 
 _nim_client = None
 _orchestrator = None
+_nim_client_lock = _threading.Lock()
+_orchestrator_lock = _threading.Lock()
 
 
 def _get_nim():
     global _nim_client
-    if _nim_client is None:
-        from src.models.nim_client import NIMClient
-        _nim_client = NIMClient()
+    if _nim_client is not None:
+        return _nim_client
+    with _nim_client_lock:
+        if _nim_client is None:
+            try:
+                from src.models.nim_client import NIMClient
+                _nim_client = NIMClient()
+            except Exception as exc:
+                logger.warning("NIMClient init failed: %s", exc, exc_info=True)
+                _nim_client = None
     return _nim_client
 
 
 def _get_orchestrator():
     global _orchestrator
-    if _orchestrator is None:
-        from src.pipeline.orchestrator import PipelineOrchestrator
-        _orchestrator = PipelineOrchestrator()
+    if _orchestrator is not None:
+        return _orchestrator
+    with _orchestrator_lock:
+        if _orchestrator is None:
+            try:
+                from src.pipeline.orchestrator import PipelineOrchestrator
+                _orchestrator = PipelineOrchestrator()
+            except Exception as exc:
+                logger.warning("PipelineOrchestrator init failed: %s", exc, exc_info=True)
+                _orchestrator = None
     return _orchestrator
 
 

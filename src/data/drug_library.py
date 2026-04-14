@@ -87,8 +87,8 @@ class DrugLibrary:
                     }
                     results.append(entry)
             self._approved_cache = results if results else _FALLBACK_ANTIBIOTICS
-        except Exception:
-            logger.warning("ChEMBL fetch failed; using fallback antibiotic set")
+        except Exception as exc:
+            logger.warning("ChEMBL fetch failed (%s); using fallback antibiotic set", exc)
             self._approved_cache = _FALLBACK_ANTIBIOTICS
 
         self._index_smiles(self._approved_cache)
@@ -120,8 +120,8 @@ class DrugLibrary:
                         "disease_area": row.get("disease_area", ""),
                     })
             self._repurposing_cache = results
-        except Exception:
-            logger.warning("Repurposing Hub fetch failed; returning empty list")
+        except Exception as exc:
+            logger.warning("Repurposing Hub fetch failed (%s); returning empty list", exc)
             self._repurposing_cache = []
 
         self._index_smiles(self._repurposing_cache)
