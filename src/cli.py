@@ -61,18 +61,12 @@ def progress(msg: str, pct: float) -> None:
 # Env loading
 # ---------------------------------------------------------------------------
 def _load_env() -> None:
-    """Load .env from project root into os.environ (simple key=value parser)."""
-    for candidate in [Path.cwd() / ".env", Path(__file__).resolve().parent.parent / ".env"]:
-        if candidate.is_file():
-            with open(candidate) as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#") or "=" not in line:
-                        continue
-                    k, v = line.split("=", 1)
-                    v = v.strip().strip("'\"")
-                    os.environ.setdefault(k.strip(), v)
-            break
+    """Load .env from project root or CWD into os.environ via python-dotenv."""
+    from dotenv import load_dotenv
+    project_root_env = Path(__file__).resolve().parent.parent / ".env"
+    if project_root_env.is_file():
+        load_dotenv(project_root_env, override=False)
+    load_dotenv(Path.cwd() / ".env", override=False)
 
 # ---------------------------------------------------------------------------
 # Lazy imports (keep startup fast)

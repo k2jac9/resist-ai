@@ -10,16 +10,69 @@ from __future__ import annotations
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Any, Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+load_dotenv(override=False)
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Domain validators (boundary input validation)
+# ---------------------------------------------------------------------------
+
+# Standard 20 amino acids + B, J, O, U, X, Z (ambiguous/unknown), * (stop)
+_AA_ALPHABET = set("ACDEFGHIKLMNPQRSTVWYBJOUXZ*")
+_DNA_ALPHABET = set("ACGTNU")  # N = any, U = RNA tolerated
+
+
+def _validate_smiles(value: str) -> str:
+    """Verify SMILES parses with RDKit. Raises ValueError on invalid."""
+    try:
+        from rdkit import Chem, RDLogger
+        RDLogger.DisableLog("rdApp.*")  # suppress RDKit's noisy stderr
+    except ImportError:
+        return value  # RDKit unavailable -> skip validation
+    mol = Chem.MolFromSmiles(value)
+    if mol is None:
+        raise ValueError(f"invalid SMILES string: {value[:80]!r}")
+    return value
+
+
+def _validate_protein_sequence(value: str) -> str:
+    """Verify amino acid sequence uses only standard/extended alphabet."""
+    cleaned = value.strip().upper().replace(" ", "").replace("\n", "")
+    if not cleaned:
+        raise ValueError("protein sequence is empty")
+    bad = set(cleaned) - _AA_ALPHABET
+    if bad:
+        raise ValueError(
+            f"invalid amino acid characters: {sorted(bad)} "
+            f"(allowed: {''.join(sorted(_AA_ALPHABET))})"
+        )
+    return cleaned
+
+
+def _validate_dna_sequence(value: str) -> str:
+    """Verify DNA sequence uses only ACGT (plus N/U tolerated)."""
+    cleaned = value.strip().upper().replace(" ", "").replace("\n", "")
+    if not cleaned:
+        raise ValueError("DNA sequence is empty")
+    bad = set(cleaned) - _DNA_ALPHABET
+    if bad:
+        raise ValueError(
+            f"invalid DNA bases: {sorted(bad)} (allowed: A, C, G, T, N, U)"
+        )
+    return cleaned
+
 
 # ---------------------------------------------------------------------------
 # Pydantic request/response models
@@ -27,7 +80,7 @@ logger = logging.getLogger(__name__)
 
 
 class PipelineRequest(BaseModel):
-    pathogen: str = Field(..., description="Pathogen identifier, e.g. acinetobacter_baumannii")
+    pathogen: str = Field(..., min_length=1, description="Pathogen identifier, e.g. acinetobacter_baumannii")
     max_drugs: int = Field(100, ge=1, le=500, description="Max compounds to screen per target")
     generate_novel: bool = Field(True, description="Run MolMIM novel molecule generation")
 
@@ -36,9 +89,14 @@ class BindingRequest(BaseModel):
     protein_sequence: str = Field(..., min_length=10, description="Amino acid sequence")
     ligand_smiles: str = Field(..., min_length=1, description="Ligand SMILES string")
 
+    _v_seq = field_validator("protein_sequence")(_validate_protein_sequence)
+    _v_smi = field_validator("ligand_smiles")(_validate_smiles)
+
 
 class StructureRequest(BaseModel):
     sequence: str = Field(..., min_length=10, description="Amino acid sequence")
+
+    _v_seq = field_validator("sequence")(_validate_protein_sequence)
 
 
 class GenerateRequest(BaseModel):
@@ -46,10 +104,14 @@ class GenerateRequest(BaseModel):
     num_molecules: int = Field(5, ge=1, le=50, description="Number of molecules to generate")
     optimize: str = Field("QED", description="Property to optimize (QED, logP, etc.)")
 
+    _v_smi = field_validator("seed_smiles")(_validate_smiles)
+
 
 class DNAGenerateRequest(BaseModel):
     sequence: str = Field(..., min_length=5, description="Input DNA sequence (A/T/G/C)")
     num_tokens: int = Field(256, ge=1, le=2048, description="Nucleotide tokens to generate")
+
+    _v_seq = field_validator("sequence")(_validate_dna_sequence)
 
 
 class DockRequest(BaseModel):
@@ -57,10 +119,14 @@ class DockRequest(BaseModel):
     ligand_smiles: str = Field(..., min_length=1, description="Ligand SMILES string")
     num_poses: int = Field(5, ge=1, le=20, description="Number of docking poses")
 
+    _v_smi = field_validator("ligand_smiles")(_validate_smiles)
+
 
 class BinderRequest(BaseModel):
     target_sequence: str = Field(..., min_length=10, description="Target protein sequence")
     contigs: Optional[str] = Field(None, description="RFdiffusion contig specification")
+
+    _v_seq = field_validator("target_sequence")(_validate_protein_sequence)
 
 
 class APIResponse(BaseModel):
@@ -74,12 +140,26 @@ class APIResponse(BaseModel):
 # App setup
 # ---------------------------------------------------------------------------
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application startup/shutdown lifecycle (replaces deprecated on_event)."""
+    nim = _get_nim()
+    if nim.available:
+        logger.info("NIM client available with API key")
+    else:
+        logger.warning("NIM client unavailable -- endpoints will use fallback/mock data")
+    yield
+    # No shutdown actions needed
+
+
 app = FastAPI(
     title="ResistAI API",
     description="AMR drug discovery pipeline powered by NVIDIA NIM biology models",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -156,19 +236,6 @@ def _timed(func, *args, **kwargs) -> tuple[Any, float]:
     t0 = time.time()
     result = func(*args, **kwargs)
     return result, (time.time() - t0) * 1000
-
-
-# ---------------------------------------------------------------------------
-# Startup
-# ---------------------------------------------------------------------------
-
-@app.on_event("startup")
-async def startup_check():
-    nim = _get_nim()
-    if nim.available:
-        logger.info("NIM client available with API key")
-    else:
-        logger.warning("NIM client unavailable -- endpoints will use fallback/mock data")
 
 
 # ---------------------------------------------------------------------------

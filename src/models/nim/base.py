@@ -24,18 +24,15 @@ ENDPOINTS = {
 
 
 def _get_api_key() -> str:
-    """Load NVIDIA API key from env or .env file."""
+    """Load NVIDIA API key from env (or .env via python-dotenv if not yet loaded)."""
     key = os.environ.get("NVIDIA_API_KEY", "")
     if not key:
-        env_path = os.path.join(os.getcwd(), ".env")
-        if os.path.exists(env_path):
-            try:
-                for line in open(env_path):
-                    line = line.strip()
-                    if line.startswith("NVIDIA_API_KEY="):
-                        key = line.split("=", 1)[1].strip().strip('"').strip("'")
-            except Exception:
-                pass
+        try:
+            from dotenv import load_dotenv
+            load_dotenv(override=False)
+            key = os.environ.get("NVIDIA_API_KEY", "")
+        except ImportError:
+            pass
     return key
 
 

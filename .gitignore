@@ -22,6 +22,11 @@ __pycache__/
 htmlcov/
 .tox/
 .hypothesis/
+.venv
+.venv/
+venv
+venv/
+.ruff_cache/
 
 # Claude Code & RuFlo
 .claude/
