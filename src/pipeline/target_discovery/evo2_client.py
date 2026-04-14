@@ -1,14 +1,30 @@
-# DEPRECATED: Use src.models.nim_client.NIMClient instead
-"""Evo2 genomic model client via Nebius AI Studio API."""
+"""DEPRECATED Evo2 genomic model client via Nebius AI Studio API.
+
+This module is kept for reference only. It attempts to drive Evo2-40b through
+Nebius AI Studio's OpenAI-compatible chat completions endpoint, which is a
+misuse of the model (Evo2 is a genomic sequence generator, not a chat model).
+
+Use `src.models.nim_client.NIMClient` with the NVIDIA NIM Evo2 generate endpoint
+instead — it is the real, supported integration used by `src.pipeline.stages`
+and `src.pipeline.orchestrator`.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
 import os
+import warnings
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
+
+warnings.warn(
+    "src.pipeline.target_discovery.evo2_client is deprecated and will be removed. "
+    "Use src.models.nim_client.NIMClient (NVIDIA NIM Evo2 generate endpoint) instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 NEBIUS_BASE_URL = "https://api.tokenfactory.nebius.com/v1"
 EVO2_MODEL = "evo2-40b"
