@@ -19,6 +19,12 @@ COPY scripts/ scripts/
 COPY config/docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Create unprivileged user and hand over /app
+RUN groupadd --system --gid 1000 resistai \
+    && useradd --system --uid 1000 --gid resistai --home /app --shell /usr/sbin/nologin resistai \
+    && chown -R resistai:resistai /app
+USER resistai
+
 # Expose ports
 EXPOSE 7860 8000
 
