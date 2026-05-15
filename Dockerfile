@@ -17,7 +17,7 @@ COPY scripts/ scripts/
 
 # Copy entrypoint
 COPY config/docker-entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 # Create unprivileged user and hand over /app
 RUN groupadd --system --gid 1000 resistai \
