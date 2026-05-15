@@ -11,7 +11,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import tempfile
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -147,13 +146,6 @@ class Boltz2Client:
 
         try:
             client = OpenAI(api_key=self._api_key, base_url=self._base_url)
-
-            # Write YAML to a temp file for the files-based API
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".yaml", delete=False,
-            ) as fh:
-                fh.write(yaml_input)
-                yaml_path = fh.name
 
             response = client.chat.completions.create(
                 model=self._model,
