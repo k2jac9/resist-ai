@@ -8,6 +8,9 @@ This is the thin entry-point shell. All tab logic lives in src/ui/*.
 """
 from __future__ import annotations
 
+import logging
+import os
+
 from src.ui import create_app
 from src.ui.common import _CSS
 
@@ -61,16 +64,28 @@ from src.ui.tab_regulatory import (  # noqa: F401
 )
 from src.comparison import DIMENSIONS as _CMP_DIMS  # noqa: F401
 
+logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 def main() -> None:
+    ui_user = os.environ.get("RESISTAI_UI_USER")
+    ui_pass = os.environ.get("RESISTAI_UI_PASSWORD")
+    auth = (ui_user, ui_pass) if ui_user and ui_pass else None
+    if auth is None:
+        logger.warning(
+            "RESISTAI_UI_USER/RESISTAI_UI_PASSWORD not set -- the Gradio UI is "
+            "launching WITHOUT authentication. Set both to enable access control."
+        )
     create_app().launch(
-        server_name="0.0.0.0",
-        server_port=7860,
+        # Host is configurable; default 0.0.0.0 preserves container reachability.
+        server_name=os.environ.get("RESISTAI_UI_HOST", "0.0.0.0"),
+        server_port=int(os.environ.get("RESISTAI_UI_PORT", "7860")),
         share=False,
-        show_error=True,
+        show_error=False,
+        auth=auth,
         css=_CSS,
     )
 

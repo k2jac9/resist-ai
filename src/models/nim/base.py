@@ -24,7 +24,11 @@ ENDPOINTS = {
 
 
 def _get_api_key() -> str:
-    """Load NVIDIA API key from env (or .env via python-dotenv if not yet loaded)."""
+    """Load NVIDIA API key from env (or .env via python-dotenv if not yet loaded).
+
+    Strips surrounding whitespace including trailing CR/LF. This defends against
+    .env files saved with CRLF line endings leaking \r into the Authorization header.
+    """
     key = os.environ.get("NVIDIA_API_KEY", "")
     if not key:
         try:
@@ -33,14 +37,14 @@ def _get_api_key() -> str:
             key = os.environ.get("NVIDIA_API_KEY", "")
         except ImportError:
             pass
-    return key
+    return key.strip()
 
 
 class NIMBase:
     """Base class with shared HTTP logic for NIM endpoints."""
 
     def __init__(self, api_key: str | None = None, timeout: int = 120) -> None:
-        self._api_key = api_key or _get_api_key()
+        self._api_key = (api_key or _get_api_key()).strip()
         self._timeout = timeout
         self._available = bool(self._api_key)
         if not self._available:

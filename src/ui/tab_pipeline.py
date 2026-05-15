@@ -1,6 +1,9 @@
 """Tab: Run Pipeline — 9-stage AI drug discovery pipeline."""
 from __future__ import annotations
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 
 try:
     import gradio as gr
@@ -132,7 +135,20 @@ def run_pipeline_ui(label: str, max_n: int, demo: bool, progress=gr.Progress()):
             status_md = f"{_mode_badge(False)}\n\n✅ **Pipeline complete in {duration}s!**\n\n{model_badges}"
             return (status_md, _to_df(targets), _to_df(hits), summary)
         except Exception:
-            pass
+            logger.exception("Live pipeline failed")
+            # Detail is logged server-side above; do not render exception text
+            # or tracebacks into the UI (info disclosure).
+            err_status = (
+                f"{_mode_badge(True)}\n\n"
+                f"⚠️ **Live mode failed — falling back to demo data.**\n\n"
+                f"The live pipeline encountered an error. Showing demo results "
+                f"instead; check server logs for details."
+            )
+            targets = _build_targets(key)
+            candidates = _build_candidates(n, key)
+            tech_detail = _build_tech_detail(key, targets, candidates)
+            summary = _generate_summary(label, targets, candidates, tech_detail)
+            return (err_status, _to_df(targets), _to_df(candidates), summary)
 
     for pct, msg in [(0.1, "🔍 Step 1: Scanning genome for vulnerabilities..."),
                      (0.4, "💊 Step 2: Screening drugs against targets..."),

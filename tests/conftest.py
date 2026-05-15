@@ -1,5 +1,12 @@
 """Shared fixtures for ResistAI test suite."""
+import os
+
 import pytest
+
+# The API server is fail-closed by default (refuses to start without
+# RESISTAI_API_KEY). The test suite runs locally without a configured key, so
+# opt into insecure mode before any test module imports src.api.server.
+os.environ.setdefault("RESISTAI_ALLOW_INSECURE", "1")
 
 
 @pytest.fixture

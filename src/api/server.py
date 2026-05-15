@@ -7,8 +7,10 @@ Run with: uvicorn src.api.server:app --port 8000
 """
 from __future__ import annotations
 
+import hmac
 import logging
 import os
+import threading
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -162,12 +164,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS: only enable credentialed cross-origin requests for an explicit
+# allowlist (RESISTAI_CORS_ORIGINS, comma-separated). A wildcard origin with
+# credentials is invalid/dangerous, so when no allowlist is configured we serve
+# a non-credentialed wildcard (safe default for a token-in-header API).
+_cors_origins = [
+    o.strip()
+    for o in os.environ.get("RESISTAI_CORS_ORIGINS", "").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins or ["*"],
+    allow_credentials=bool(_cors_origins),
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["X-API-Key", "Content-Type"],
 )
 
 # ---------------------------------------------------------------------------
@@ -176,27 +187,35 @@ app.add_middleware(
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 _REQUIRED_KEY = os.environ.get("RESISTAI_API_KEY", "")
+# Retained for backward compatibility; auth is now fail-closed by default so
+# this no longer needs to be set explicitly.
 _AUTH_STRICT = os.environ.get("RESISTAI_AUTH_STRICT", "").lower() in ("1", "true", "yes")
+_ALLOW_INSECURE = os.environ.get("RESISTAI_ALLOW_INSECURE", "").lower() in ("1", "true", "yes")
 
 if not _REQUIRED_KEY:
-    if _AUTH_STRICT:
-        raise RuntimeError(
-            "RESISTAI_AUTH_STRICT is enabled but RESISTAI_API_KEY is not set. "
-            "Set RESISTAI_API_KEY in the environment or disable RESISTAI_AUTH_STRICT."
+    if _ALLOW_INSECURE and not _AUTH_STRICT:
+        logger.warning(
+            "RESISTAI_API_KEY is not set and RESISTAI_ALLOW_INSECURE=1 -- API "
+            "endpoints are UNAUTHENTICATED. Do NOT use this in production."
         )
-    logger.warning(
-        "RESISTAI_API_KEY is not set -- API endpoints are UNAUTHENTICATED. "
-        "Set RESISTAI_API_KEY in production, or set RESISTAI_AUTH_STRICT=1 to fail-closed."
-    )
+    else:
+        raise RuntimeError(
+            "RESISTAI_API_KEY is not set. Refusing to start with unauthenticated "
+            "endpoints. Set RESISTAI_API_KEY, or set RESISTAI_ALLOW_INSECURE=1 to "
+            "explicitly run without authentication (local/dev only)."
+        )
 
 
 async def verify_api_key(api_key: Optional[str] = Security(_api_key_header)) -> Optional[str]:
-    """Validate X-API-Key header. If RESISTAI_API_KEY is unset, requests are
-    accepted (with a warning logged at startup). Set RESISTAI_AUTH_STRICT=1
-    to fail-closed when no key is configured."""
+    """Validate the X-API-Key header using a constant-time comparison.
+
+    Auth is fail-closed: the server refuses to start without RESISTAI_API_KEY
+    unless RESISTAI_ALLOW_INSECURE=1 is explicitly set, so an empty
+    _REQUIRED_KEY here means the operator deliberately opted into insecure mode.
+    """
     if not _REQUIRED_KEY:
         return api_key
-    if api_key != _REQUIRED_KEY:
+    if not api_key or not hmac.compare_digest(api_key, _REQUIRED_KEY):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
     return api_key
 
@@ -218,12 +237,10 @@ async def timing_middleware(request: Request, call_next):
 # Lazy-loaded clients (thread-safe; avoid import errors at module level)
 # ---------------------------------------------------------------------------
 
-import threading as _threading
-
 _nim_client = None
 _orchestrator = None
-_nim_client_lock = _threading.Lock()
-_orchestrator_lock = _threading.Lock()
+_nim_client_lock = threading.Lock()
+_orchestrator_lock = threading.Lock()
 
 
 def _get_nim():
@@ -287,10 +304,10 @@ async def run_pipeline(req: PipelineRequest, _key: str = Security(verify_api_key
         )
         return APIResponse(success=True, data=result.to_dict(), elapsed_ms=round(elapsed, 1))
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Pipeline failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @app.post("/v1/predict/binding", response_model=APIResponse)
@@ -304,7 +321,7 @@ async def predict_binding(req: BindingRequest, _key: str = Security(verify_api_k
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Binding prediction failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @app.post("/v1/predict/structure", response_model=APIResponse)
@@ -318,7 +335,7 @@ async def predict_structure(req: StructureRequest, _key: str = Security(verify_a
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Structure prediction failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @app.post("/v1/generate/molecules", response_model=APIResponse)
@@ -337,7 +354,7 @@ async def generate_molecules(req: GenerateRequest, _key: str = Security(verify_a
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Molecule generation failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @app.post("/v1/generate/dna", response_model=APIResponse)
@@ -351,7 +368,7 @@ async def generate_dna(req: DNAGenerateRequest, _key: str = Security(verify_api_
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("DNA generation failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @app.post("/v1/dock", response_model=APIResponse)
@@ -370,7 +387,7 @@ async def dock_molecule(req: DockRequest, _key: str = Security(verify_api_key)):
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Docking failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @app.post("/v1/design/binder", response_model=APIResponse)
@@ -413,7 +430,7 @@ async def design_binder(req: BinderRequest, _key: str = Security(verify_api_key)
         raise
     except Exception as exc:
         logger.exception("Binder design failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @app.get("/v1/health", response_model=APIResponse)
@@ -434,9 +451,9 @@ async def health_check():
             data={"nim_available": True, "endpoints": result},
             elapsed_ms=round(elapsed, 1),
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("Health check failed")
-        return APIResponse(success=False, error=str(exc))
+        return APIResponse(success=False, error="Health check failed")
 
 
 @app.get("/v1/models", response_model=APIResponse)
@@ -471,5 +488,5 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
-        content={"success": False, "error": str(exc), "data": None, "elapsed_ms": 0.0},
+        content={"success": False, "error": "Internal server error", "data": None, "elapsed_ms": 0.0},
     )
