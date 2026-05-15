@@ -1,10 +1,13 @@
-"""Nebius AI Studio LLM client for AMR-AI reasoning tasks.
+"""LLM client for AMR-AI reasoning tasks.
 
-Uses the available LLMs (DeepSeek-R1, Qwen3, etc.) for:
-- Target analysis and interpretation
-- Drug mechanism explanation
-- Safety assessment reasoning
-- Report generation
+Supports multiple OpenAI-compatible providers via LLM_PROVIDER env var
+(default: ollama — free local inference):
+- ollama     (local Ollama — gemma4, llama, etc., no network, no cost)
+- nebius     (Nebius AI Studio — DeepSeek-R1, Qwen3)
+- openrouter (OpenRouter free tier — DeepSeek-R1, Qwen3, Llama)
+- anthropic  (Anthropic Claude via OpenAI-compat endpoint)
+
+Used for target analysis, drug mechanism, safety reasoning, report generation.
 """
 from __future__ import annotations
 import json, logging, os
@@ -12,43 +15,127 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Best models for reasoning tasks on Nebius
+# Per-provider config: base URL, env var for key, default model.
+# Keys:
+#   base_url           — OpenAI-compatible endpoint (resolved lazily for ollama)
+#   key_env            — env var holding the API key
+#   default_model      — fallback if LLM_MODEL not set
+#   supports_json_mode — whether response_format={"type":"json_object"} is accepted
+#   requires_key       — whether an API key is mandatory (False for local ollama)
+_PROVIDERS: dict[str, dict[str, Any]] = {
+    "ollama": {
+        "base_url": None,  # resolved from OLLAMA_BASE_URL env var, default below
+        "key_env": "OLLAMA_API_KEY",
+        "default_model": "gemma4:e4b",
+        "supports_json_mode": True,
+        "requires_key": False,
+    },
+    "nebius": {
+        "base_url": "https://api.studio.nebius.com/v1/",
+        "key_env": "NEBIUS_API_KEY",
+        "default_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+        "supports_json_mode": True,
+        "requires_key": True,
+    },
+    "openrouter": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "key_env": "OPENROUTER_API_KEY",
+        "default_model": "deepseek/deepseek-r1:free",
+        "supports_json_mode": True,
+        "requires_key": True,
+    },
+    "anthropic": {
+        "base_url": "https://api.anthropic.com/v1/",
+        "key_env": "ANTHROPIC_API_KEY",
+        "default_model": "claude-sonnet-4-6",
+        "supports_json_mode": False,  # Claude OAI-compat doesn't accept response_format
+        "requires_key": True,
+    },
+}
+
+_OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1"
+
+# Legacy aliases kept for any external importers.
 _REASONING_MODEL = "deepseek-ai/DeepSeek-R1-0528"
-_FAST_MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507"
+_FAST_MODEL = _PROVIDERS["nebius"]["default_model"]
 _CODER_MODEL = "Qwen/Qwen2.5-Coder-7B-fast"
 
 
-class NebisLLM:
-    """Client for Nebius AI Studio LLM inference."""
+def _read_env_key(key_env: str) -> str:
+    """Read a key from os.environ, falling back to parsing .env directly.
 
-    def __init__(self, model: str = _FAST_MODEL) -> None:
-        self._model = model
-        self._api_key = os.environ.get("NEBIUS_API_KEY", "")
-        if not self._api_key:
-            try:
-                env_path = os.path.join(os.getcwd(), ".env")
-                if os.path.exists(env_path):
-                    for line in open(env_path):
-                        if line.startswith("NEBIUS_API_KEY="):
-                            self._api_key = line.split("=", 1)[1].strip()
-            except Exception:
-                pass
+    The .env fallback preserves behavior for callers that import this module
+    before python-dotenv has had a chance to populate os.environ.
+    """
+    val = os.environ.get(key_env, "")
+    if val:
+        return val
+    try:
+        env_path = os.path.join(os.getcwd(), ".env")
+        if os.path.exists(env_path):
+            prefix = f"{key_env}="
+            for line in open(env_path):
+                if line.startswith(prefix):
+                    return line.split("=", 1)[1].strip()
+    except Exception:
+        pass
+    return ""
+
+
+class NebisLLM:
+    """Provider-agnostic LLM client (class name kept for import compat)."""
+
+    def __init__(self, model: str | None = None) -> None:
+        self._provider = os.environ.get("LLM_PROVIDER", "ollama").lower().strip()
+        if self._provider not in _PROVIDERS:
+            logger.warning(
+                "Unknown LLM_PROVIDER=%r; falling back to 'ollama'", self._provider
+            )
+            self._provider = "ollama"
+        cfg = _PROVIDERS[self._provider]
+        self._cfg = cfg
+        self._model = model or os.environ.get("LLM_MODEL") or cfg["default_model"]
+        self._base_url = self._resolve_base_url()
+        self._api_key = _read_env_key(cfg["key_env"]) or ("ollama" if self._provider == "ollama" else "")
         self._client = None
         self._available = False
         self._init()
 
+    def _resolve_base_url(self) -> str:
+        """Return the base URL, honoring OLLAMA_BASE_URL for local provider."""
+        if self._provider == "ollama":
+            return os.environ.get("OLLAMA_BASE_URL", _OLLAMA_DEFAULT_BASE_URL).rstrip("/") + ("" if _OLLAMA_DEFAULT_BASE_URL.endswith("/") else "")
+        return self._cfg["base_url"]
+
     def _init(self) -> None:
-        if not self._api_key:
-            logger.warning("No NEBIUS_API_KEY; LLM features disabled")
+        if self._cfg.get("requires_key", True) and not self._api_key:
+            logger.warning(
+                "No %s set; LLM features disabled (provider=%s)",
+                self._cfg["key_env"], self._provider,
+            )
             return
         try:
             from openai import OpenAI
             self._client = OpenAI(
-                base_url="https://api.studio.nebius.com/v1/",
-                api_key=self._api_key,
+                base_url=self._base_url,
+                api_key=self._api_key or "placeholder",
             )
+            # For ollama, verify the server is actually reachable before marking available.
+            if self._provider == "ollama":
+                import httpx
+                try:
+                    httpx.get(self._base_url.rstrip("/v1") + "/api/tags", timeout=2.0)
+                except Exception as e:
+                    logger.warning(
+                        "Ollama not reachable at %s (%s); set OLLAMA_BASE_URL or switch LLM_PROVIDER",
+                        self._base_url, e,
+                    )
+                    return
             self._available = True
-            logger.info("Nebius LLM client ready (model=%s)", self._model)
+            logger.info(
+                "LLM client ready (provider=%s, model=%s, base_url=%s)",
+                self._provider, self._model, self._base_url,
+            )
         except Exception as e:
             logger.warning("Failed to init LLM client: %s", e)
 
@@ -71,7 +158,7 @@ class NebisLLM:
                 "max_tokens": max_tokens,
                 "temperature": temperature,
             }
-            if json_mode:
+            if json_mode and self._cfg.get("supports_json_mode", False):
                 kwargs["response_format"] = {"type": "json_object"}
             resp = self._client.chat.completions.create(**kwargs)
             return resp.choices[0].message.content or ""

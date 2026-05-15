@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import random
+import threading
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -32,10 +33,8 @@ def stage_genomics(nim: Any, sequence: str, num_tokens: int = 128) -> dict:
 
 
 # Lazy-loaded ESM-2 client (heavy — 650M params); thread-safe
-import threading as _threading
-
 _esm2 = None
-_esm2_lock = _threading.Lock()
+_esm2_lock = threading.Lock()
 
 
 def _get_esm2():
