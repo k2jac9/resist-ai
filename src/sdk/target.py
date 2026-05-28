@@ -7,8 +7,8 @@ via httpx so the SDK stays simple to use in scripts and notebooks.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
-from typing import Optional
 
 import httpx
 
@@ -18,6 +18,10 @@ _UNIPROT_BASE = "https://rest.uniprot.org/uniprotkb"
 _PDB_FASTA_BASE = "https://www.rcsb.org/fasta/entry"
 _PDB_FILE_BASE = "https://files.rcsb.org/download"
 _TIMEOUT = 30.0
+
+# Identifier formats, enforced before any value is interpolated into a URL.
+_PDB_ID_RE = re.compile(r"^[A-Za-z0-9]{4}$")
+_UNIPROT_ID_RE = re.compile(r"^[A-Za-z0-9]{6,10}$")
 
 
 def _parse_fasta(text: str) -> str:
@@ -85,6 +89,8 @@ class Target:
             RuntimeError: If the fetch fails after retries.
         """
         accession = accession.strip().upper()
+        if not _UNIPROT_ID_RE.match(accession):
+            raise ValueError(f"Invalid UniProt accession: {accession!r}")
         url = f"{_UNIPROT_BASE}/{accession}.fasta"
         try:
             resp = httpx.get(url, timeout=_TIMEOUT, follow_redirects=True)
@@ -122,6 +128,8 @@ class Target:
             RuntimeError: If the fetch fails.
         """
         pdb_id = pdb_id.strip().upper()
+        if not _PDB_ID_RE.match(pdb_id):
+            raise ValueError(f"Invalid PDB id: {pdb_id!r}")
 
         # Fetch FASTA for the sequence
         fasta_url = f"{_PDB_FASTA_BASE}/{pdb_id}"

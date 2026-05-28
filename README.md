@@ -22,7 +22,7 @@
 
 </div>
 
-![alt text](ResistAI-1.png)
+![ResistAI](ResistAI.png)
 
 ---
 ## The Problem
@@ -115,13 +115,13 @@ Both paradigms run through the same orchestrated pipeline, accessible via a **Gr
 
 | # | Model | Task | Provider | Endpoint |
 |---|-------|------|----------|----------|
-| 1 | **Evo2-40b** | Genomic analysis, resistance gene detection | NVIDIA NIM | `nvidia/evo2-40b` |
+| 1 | **Evo2-40b** | Genomic analysis, resistance gene detection | NVIDIA NIM | `arc/evo2-40b` |
 | 2 | **ESMFold** | Protein structure prediction (single-sequence) | NVIDIA NIM | `nvidia/esmfold` |
-| 3 | **Boltz-2** | Biomolecular binding & docking prediction | NVIDIA NIM | `nvidia/boltz-2` |
-| 4 | **DiffDock** | Molecular docking pose generation | NVIDIA NIM | `nvidia/diffdock` |
+| 3 | **Boltz-2** | Biomolecular binding & docking prediction | NVIDIA NIM | `mit/boltz2` |
+| 4 | **DiffDock** | Molecular docking pose generation | NVIDIA NIM | `mit/diffdock` |
 | 5 | **MolMIM** | Novel molecule generation & optimization | NVIDIA NIM | `nvidia/molmim` |
-| 6 | **RFdiffusion** | De novo protein backbone design | NVIDIA NIM | `nvidia/rfdiffusion` |
-| 7 | **ProteinMPNN** | Protein sequence design from backbone | NVIDIA NIM | `nvidia/proteinmpnn` |
+| 6 | **RFdiffusion** | De novo protein backbone design | NVIDIA NIM | `ipd/rfdiffusion` |
+| 7 | **ProteinMPNN** | Protein sequence design from backbone | NVIDIA NIM | `ipd/proteinmpnn` |
 | 8 | **Qwen3-235B-A22B** | Clinical reasoning & report synthesis | Nebius AI | `Qwen/Qwen3-235B-A22B` |
 | 9 | **DeepSeek-R1** | Deep chain-of-thought analysis | Nebius AI | `deepseek-ai/DeepSeek-R1` |
 
@@ -129,7 +129,10 @@ Both paradigms run through the same orchestrated pipeline, accessible via a **Gr
 
 ## Key Results
 
-Real outputs from live API calls during the hackathon:
+Representative outputs from the pipeline. Binding/QED values shown in the UI are
+illustrative; live runs against NVIDIA NIM produce comparable figures, and when
+NIM is unavailable the pipeline falls back to clearly-labeled heuristic scores
+(`model_used = "heuristic_docking"`).
 
 ### Binding Prediction (Boltz-2)
 
@@ -161,9 +164,9 @@ Real outputs from live API calls during the hackathon:
 | Pathogen | WHO Priority | Key Target |
 |----------|-------------|------------|
 | *Klebsiella pneumoniae* | Critical | NDM-1, KPC-2 |
-| *Acinetobacter baumannii* | Critical | OXA-23, OXA-51 |
-| *Pseudomonas aeruginosa* | Critical | VIM-2, MexAB-OprM |
-| *Enterobacter cloacae* | Critical | AmpC, NDM-1 |
+| *Acinetobacter baumannii* | Critical | NDM-1, OXA-23 |
+| *Pseudomonas aeruginosa* | Critical | MexB, LasR |
+| *Staphylococcus aureus* (MRSA) | High | PBP2a, DNA Gyrase |
 
 ---
 
@@ -209,9 +212,9 @@ uvicorn src.api:app --host 0.0.0.0 --port 8000
 ### Run a Pipeline via CLI
 
 ```bash
-python -m src.pipeline.orchestrator \
-  --pathogen klebsiella_pneumoniae \
-  --target NDM-1
+python -m src.cli run --pathogen klebsiella_pneumoniae --novel
+# or use the wrapper script:
+./scripts/resistai run --pathogen klebsiella_pneumoniae --novel
 ```
 
 ---
@@ -219,32 +222,40 @@ python -m src.pipeline.orchestrator \
 ## SDK Usage
 
 ```python
-from src.sdk import MoleculeOptimizer, Candidate
-from src.sdk.target import Target
-from src.pipeline.orchestrator import PipelineOrchestrator
+from src.sdk import Pipeline, Target
 
-# Define target from PDB
-target = Target.from_pdb("6BPY")  # NDM-1 crystal structure
+# Define a target from PDB (downloads sequence + structure)
+target = Target.from_pdb("3SPU")  # NDM-1
 
-# Run full pipeline
-pipeline = PipelineOrchestrator()
-results = pipeline.run(
-    pathogen="klebsiella_pneumoniae",
-    target_name="NDM-1",
+# Build and run a fluent pipeline
+results = (
+    Pipeline(target)
+    .fold()
+    .screen()
+    .dock(top_k=3)
+    .generate()
+    .run(progress=True)
 )
 
-# Access ranked candidates
-for candidate in results.candidates[:5]:
-    print(f"{candidate.drug_name}: score={candidate.composite_score:.3f}")
+# Inspect results
+print(results.to_report())
+for hit in results.screening_hits[:5]:
+    print(f"{hit.drug_name}: confidence={hit.confidence:.3f}")
+```
 
-# Optimize a hit
-optimizer = MoleculeOptimizer()
-optimized = optimizer.optimize(
-    smiles="CC1=CC=C(C=C1)C(=O)N",
-    target_pdb="6BPY",
-    n_generations=3,
+Iteratively optimize a molecule against a target with the multi-objective optimizer:
+
+```python
+from src.sdk.optimizer import MoleculeOptimizer
+
+optimizer = MoleculeOptimizer(
+    target_sequence=target.sequence,
+    seed_smiles="CC1=CC=C(C=C1)C(=O)N",
+    objectives=["binding", "qed", "lipinski"],
+    max_iterations=3,
 )
-print(f"Best QED: {optimized.best.qed:.2f}")
+result = optimizer.run()
+print(result.summary())
 ```
 
 ---
@@ -302,8 +313,8 @@ resist-ai/
 | Pipeline Orchestration | Python, async coordination |
 | Web UI | Gradio 4.x |
 | REST API | FastAPI + Uvicorn |
-| Cheminformatics | RDKit, BioPython, PubChemPy |
-| Visualization | Plotly, py3Dmol |
+| Cheminformatics | RDKit |
+| Visualization | Plotly |
 | Data Sources | PDB, UniProt, DrugBank |
 
 ---

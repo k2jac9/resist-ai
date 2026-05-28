@@ -77,6 +77,7 @@ class NIMBase:
         if resp.status_code == 429:
             logger.warning("NIM rate limited on %s; retrying after 3s", endpoint)
             time.sleep(3)
+            t0 = time.time()
             resp = requests.post(
                 url, headers=self._headers(), json=payload,
                 timeout=timeout or self._timeout,

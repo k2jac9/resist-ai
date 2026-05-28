@@ -1,4 +1,4 @@
-"""AMR-AI: Gradio Web Application for AI Drug Discovery.
+"""ResistAI: Gradio Web Application for AI Drug Discovery.
 
 Dual-audience design using progressive disclosure:
 - Surface layer: plain-language for executives, judges, clinicians
@@ -7,6 +7,8 @@ Dual-audience design using progressive disclosure:
 This is the thin entry-point shell. All tab logic lives in src/ui/*.
 """
 from __future__ import annotations
+
+import os
 
 from src.ui import create_app
 from src.ui.common import _CSS
@@ -66,11 +68,15 @@ from src.comparison import DIMENSIONS as _CMP_DIMS  # noqa: F401
 # Entry point
 # ---------------------------------------------------------------------------
 def main() -> None:
+    # show_error exposes Python tracebacks in the browser; keep off unless
+    # RESISTAI_DEBUG is set. server_name defaults to 0.0.0.0 for containers but
+    # can be pinned to 127.0.0.1 via RESISTAI_HOST for local-only use.
+    debug = os.environ.get("RESISTAI_DEBUG", "").lower() in ("1", "true", "yes")
     create_app().launch(
-        server_name="0.0.0.0",
-        server_port=7860,
+        server_name=os.environ.get("RESISTAI_HOST", "0.0.0.0"),
+        server_port=int(os.environ.get("RESISTAI_PORT", "7860")),
         share=False,
-        show_error=True,
+        show_error=debug,
         css=_CSS,
     )
 

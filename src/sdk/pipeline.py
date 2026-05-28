@@ -346,7 +346,6 @@ class Pipeline:
                 )
             else:
                 results.errors.append({"step": "design_binder", "error": "RFdiffusion/ProteinMPNN failed"})
-                results.binder_design = BinderDesign(success=False)
 
         self._steps.append(_Step(name="design_binder", fn=_run_design))
         return self

@@ -7,16 +7,42 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
+import socket
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_webhook_url(url: str) -> None:
+    """Reject non-HTTPS URLs and any host that resolves to a private/loopback/
+    link-local address, to prevent SSRF against internal services and cloud
+    metadata endpoints (e.g. 169.254.169.254)."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError(f"Webhook URL must use https, got: {parsed.scheme!r}")
+    host = parsed.hostname
+    if not host:
+        raise ValueError("Webhook URL has no host")
+    try:
+        infos = socket.getaddrinfo(host, parsed.port or 443, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise ValueError(f"Webhook host does not resolve: {host}") from exc
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (
+            ip.is_private or ip.is_loopback or ip.is_link_local
+            or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+        ):
+            raise ValueError(f"Webhook host resolves to a disallowed address: {ip}")
 
 EVENTS = [
     "pipeline.started",
@@ -55,6 +81,7 @@ class WebhookManager:
         secret: str = "",
     ) -> WebhookConfig:
         """Register a new webhook endpoint."""
+        _validate_webhook_url(url)
         resolved_events = events or ["pipeline.completed"]
         invalid = [e for e in resolved_events if e not in EVENTS]
         if invalid:
@@ -120,7 +147,9 @@ class WebhookManager:
         result: dict[str, Any] = {"url": hook.url, "event": event}
         start = time.monotonic()
         try:
-            resp = requests.post(hook.url, data=body, headers=headers, timeout=10)
+            resp = requests.post(
+                hook.url, data=body, headers=headers, timeout=10, allow_redirects=False
+            )
             result["status"] = resp.status_code
             result["ok"] = 200 <= resp.status_code < 300
         except requests.RequestException as exc:
@@ -183,17 +212,9 @@ def format_slack_message(event: str, payload: dict[str, Any]) -> dict[str, Any]:
         {"type": "mrkdwn", "text": f"*{k}:*\n{v}"}
         for k, v in list(payload.items())[:8]
     ]
-    return {
-        "attachments": [
-            {
-                "color": color,
-                "blocks": [
-                    {
-                        "type": "header",
-                        "text": {"type": "plain_text", "text": header},
-                    },
-                    {"type": "section", "fields": fields} if fields else None,
-                ],
-            }
-        ]
-    }
+    blocks: list[dict[str, Any]] = [
+        {"type": "header", "text": {"type": "plain_text", "text": header}},
+    ]
+    if fields:
+        blocks.append({"type": "section", "fields": fields})
+    return {"attachments": [{"color": color, "blocks": blocks}]}

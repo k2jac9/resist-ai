@@ -7,6 +7,7 @@ from the UniProt REST API, caching files locally under data/structures/.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,10 @@ import httpx
 from src.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Identifier formats, enforced before any value reaches a URL or filesystem path.
+_PDB_ID_RE = re.compile(r"^[A-Za-z0-9]{4}$")
+_UNIPROT_ID_RE = re.compile(r"^[A-Za-z0-9]{6,10}$")
 
 
 class PDBFetcher:
@@ -36,6 +41,9 @@ class PDBFetcher:
             Path to the downloaded file, or ``None`` on failure.
         """
         pdb_id = pdb_id.strip().upper()
+        if not _PDB_ID_RE.match(pdb_id):
+            logger.error("Invalid PDB id: %r", pdb_id)
+            return None
         dest = self._structures_dir / f"{pdb_id}.pdb"
         if dest.exists():
             logger.debug("PDB %s already cached at %s", pdb_id, dest)
@@ -62,7 +70,10 @@ class PDBFetcher:
         Returns:
             Path to the downloaded FASTA file, or ``None`` on failure.
         """
-        uniprot_id = uniprot_id.strip()
+        uniprot_id = uniprot_id.strip().upper()
+        if not _UNIPROT_ID_RE.match(uniprot_id):
+            logger.error("Invalid UniProt id: %r", uniprot_id)
+            return None
         dest = self._structures_dir / f"{uniprot_id}.fasta"
         if dest.exists():
             logger.debug("FASTA %s already cached at %s", uniprot_id, dest)
@@ -90,6 +101,9 @@ class PDBFetcher:
             Path to the PDB file, or ``None`` if download fails.
         """
         pdb_id = pdb_id.strip().upper()
+        if not _PDB_ID_RE.match(pdb_id):
+            logger.error("Invalid PDB id: %r", pdb_id)
+            return None
         dest = self._structures_dir / f"{pdb_id}.pdb"
         if dest.exists():
             return dest

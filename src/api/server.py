@@ -7,6 +7,7 @@ Run with: uvicorn src.api.server:app --port 8000
 """
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import time
@@ -82,9 +83,21 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# CORS origins are restricted to an explicit allow-list. Set RESISTAI_CORS_ORIGINS
+# to a comma-separated list of trusted origins; defaults to localhost dev hosts.
+# A wildcard with credentials is intentionally NOT used (it reflects any origin).
+_cors_origins = [
+    o.strip()
+    for o in os.environ.get(
+        "RESISTAI_CORS_ORIGINS",
+        "http://localhost:7860,http://localhost:8000,http://127.0.0.1:7860,http://127.0.0.1:8000",
+    ).split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -99,10 +112,14 @@ _REQUIRED_KEY = os.environ.get("RESISTAI_API_KEY", "")
 
 
 async def verify_api_key(api_key: Optional[str] = Security(_api_key_header)) -> Optional[str]:
-    """Validate X-API-Key header. Skip check if RESISTAI_API_KEY is not configured."""
+    """Validate X-API-Key header. Skip check if RESISTAI_API_KEY is not configured.
+
+    When no key is configured the API is unauthenticated (a loud warning is
+    logged at startup); set RESISTAI_API_KEY in any networked deployment.
+    """
     if not _REQUIRED_KEY:
         return api_key
-    if api_key != _REQUIRED_KEY:
+    if api_key is None or not hmac.compare_digest(api_key, _REQUIRED_KEY):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
     return api_key
 
@@ -164,6 +181,12 @@ def _timed(func, *args, **kwargs) -> tuple[Any, float]:
 
 @app.on_event("startup")
 async def startup_check():
+    if not _REQUIRED_KEY:
+        logger.warning(
+            "RESISTAI_API_KEY is not set -- the API is UNAUTHENTICATED and will "
+            "spend NIM/LLM credits for any caller. Set RESISTAI_API_KEY before "
+            "exposing this server on a network."
+        )
     nim = _get_nim()
     if nim.available:
         logger.info("NIM client available with API key")
@@ -191,7 +214,7 @@ async def run_pipeline(req: PipelineRequest, _key: str = Security(verify_api_key
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
         logger.exception("Pipeline failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/predict/binding", response_model=APIResponse)
@@ -205,7 +228,7 @@ async def predict_binding(req: BindingRequest, _key: str = Security(verify_api_k
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Binding prediction failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/predict/structure", response_model=APIResponse)
@@ -219,7 +242,7 @@ async def predict_structure(req: StructureRequest, _key: str = Security(verify_a
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Structure prediction failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/generate/molecules", response_model=APIResponse)
@@ -238,7 +261,7 @@ async def generate_molecules(req: GenerateRequest, _key: str = Security(verify_a
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Molecule generation failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/generate/dna", response_model=APIResponse)
@@ -252,7 +275,7 @@ async def generate_dna(req: DNAGenerateRequest, _key: str = Security(verify_api_
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("DNA generation failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/dock", response_model=APIResponse)
@@ -271,7 +294,7 @@ async def dock_molecule(req: DockRequest, _key: str = Security(verify_api_key)):
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Docking failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/design/binder", response_model=APIResponse)
@@ -314,7 +337,7 @@ async def design_binder(req: BinderRequest, _key: str = Security(verify_api_key)
         raise
     except Exception as exc:
         logger.exception("Binder design failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/v1/health", response_model=APIResponse)
@@ -335,9 +358,9 @@ async def health_check():
             data={"nim_available": True, "endpoints": result},
             elapsed_ms=round(elapsed, 1),
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("Health check failed")
-        return APIResponse(success=False, error=str(exc))
+        return APIResponse(success=False, error="Health check failed")
 
 
 @app.get("/v1/models", response_model=APIResponse)
@@ -372,5 +395,5 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
-        content={"success": False, "error": str(exc), "data": None, "elapsed_ms": 0.0},
+        content={"success": False, "error": "Internal server error", "data": None, "elapsed_ms": 0.0},
     )

@@ -33,7 +33,7 @@ class ReportGenerator:
         mode_label = "Demo Mode" if demo else "Production"
 
         lines = [
-            f"# AMR-AI Pipeline Report",
+            "# ResistAI Pipeline Report",
             "",
             f"**Pathogen:** {results.pathogen}  ",
             f"**Timestamp:** {meta.get('timestamp', 'N/A')}  ",

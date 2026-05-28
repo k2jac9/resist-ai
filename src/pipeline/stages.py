@@ -232,19 +232,19 @@ def stage_safety_score(drug_name: str, seed: Optional[int] = None) -> dict:
     """Run ADMET + off-target safety scoring (heuristic)."""
     if seed is None:
         seed = hash(drug_name) % (2**31)
-    random.seed(seed)
-    tox = round(random.uniform(0.05, 0.40), 3)
+    rng = random.Random(seed)
+    tox = round(rng.uniform(0.05, 0.40), 3)
     safety = round(1.0 - tox, 3)
 
     admet = {
-        "absorption": round(random.uniform(0.5, 0.95), 2),
-        "distribution": round(random.uniform(0.4, 0.9), 2),
-        "metabolism": round(random.uniform(0.3, 0.85), 2),
-        "excretion": round(random.uniform(0.4, 0.9), 2),
+        "absorption": round(rng.uniform(0.5, 0.95), 2),
+        "distribution": round(rng.uniform(0.4, 0.9), 2),
+        "metabolism": round(rng.uniform(0.3, 0.85), 2),
+        "excretion": round(rng.uniform(0.4, 0.9), 2),
         "toxicity_score": tox,
-        "oral_bioavailability": random.random() > 0.3,
-        "bbb_penetration": random.random() > 0.7,
-        "herg_liability": random.random() > 0.85,
+        "oral_bioavailability": rng.random() > 0.3,
+        "bbb_penetration": rng.random() > 0.7,
+        "herg_liability": rng.random() > 0.85,
     }
 
     off_targets = _generate_off_targets(drug_name, seed + 1)
@@ -271,16 +271,16 @@ def stage_safety_score(drug_name: str, seed: Optional[int] = None) -> dict:
 
 def _generate_off_targets(drug_name: str, seed: int) -> list[dict]:
     """Generate plausible off-target predictions."""
-    random.seed(seed)
+    rng = random.Random(seed)
     panel = [
         ("CYP3A4", "liver"), ("CYP2D6", "liver"), ("hERG", "cardiac"),
         ("GABAA", "CNS"), ("COX-2", "GI tract"), ("PDE5", "vascular"),
     ]
-    count = random.randint(1, 3)
-    selected = random.sample(panel, min(count, len(panel)))
+    count = rng.randint(1, 3)
+    selected = rng.sample(panel, min(count, len(panel)))
     results: list[dict] = []
     for protein, tissue in selected:
-        sim = round(random.uniform(0.25, 0.80), 2)
+        sim = round(rng.uniform(0.25, 0.80), 2)
         risk = "high" if sim > 0.7 else ("medium" if sim > 0.5 else "low")
         results.append({
             "protein_name": protein,

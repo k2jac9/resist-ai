@@ -261,7 +261,7 @@ class MoleculeOptimizer:
 
             for seed in seeds:
                 for mol_dict in self._generate_variants(seed):
-                    smiles = mol_dict.get("smiles", mol_dict.get("smi", ""))
+                    smiles = mol_dict.get("sample", mol_dict.get("smiles", mol_dict.get("smi", "")))
                     if not smiles or not validate_smiles(smiles):
                         continue
                     if smiles in all_smiles or any(c.smiles == smiles for c in iter_candidates):

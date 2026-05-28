@@ -176,9 +176,9 @@ class DrugScreener:
 
             # Fallback to heuristic
             if affinity == 0.0:
-                random.seed(hash(drug["name"] + target.name) % (2**31))
-                affinity = round(random.uniform(0.35, 0.97), 3)
-                conf = round(random.uniform(0.60, 0.95), 3)
+                rng = random.Random(hash(drug["name"] + target.name) % (2**31))
+                affinity = round(rng.uniform(0.35, 0.97), 3)
+                conf = round(rng.uniform(0.60, 0.95), 3)
 
             hits.append(ScreeningHit(
                 rank=idx + 1,

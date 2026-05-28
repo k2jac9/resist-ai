@@ -1,7 +1,7 @@
-# AMR-AI Configuration
+# ResistAI Configuration
 app:
-  name: "AMR-AI"
-  version: "0.1.0"
+  name: "ResistAI"
+  version: "1.0.0"
   description: "AI Drug Discovery Platform for Antimicrobial Resistance"
 
 # Nebius AI Studio (BioNeMo NIM)

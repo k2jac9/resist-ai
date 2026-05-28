@@ -135,7 +135,7 @@ class PipelineResults:
             "binder_design": {
                 "success": self.binder_design.success,
                 "num_sequences": len(self.binder_design.sequences),
-            } if self.binder_design else None,
+            } if (self.binder_design and self.binder_design.success) else None,
             "analysis": self.analysis,
             "errors": self.errors,
         }
@@ -201,7 +201,7 @@ class PipelineResults:
                 lines.append(f"{i}. `{smi}` -- confidence {v.confidence:.3f}")
             lines.append("")
 
-        if self.binder_design:
+        if self.binder_design and self.binder_design.success:
             lines.append("## Binder Design (RFdiffusion + ProteinMPNN)")
             lines.append(f"- Success: {self.binder_design.success}")
             lines.append(f"- Designed sequences: {len(self.binder_design.sequences)}")
