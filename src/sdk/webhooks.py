@@ -7,12 +7,16 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
+import os
+import socket
 import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 import requests
 
@@ -26,6 +30,43 @@ EVENTS = [
     "binder.designed",
     "experiment.completed",
 ]
+
+# Allow plain-HTTP/private destinations only when explicitly opted in (local dev).
+_ALLOW_PRIVATE_WEBHOOKS = os.environ.get(
+    "RESISTAI_ALLOW_PRIVATE_WEBHOOKS", ""
+).lower() in ("1", "true", "yes")
+
+
+def _validate_webhook_url(url: str) -> None:
+    """Reject webhook URLs that could enable SSRF.
+
+    Enforces an https scheme and refuses hosts that resolve to private,
+    loopback, link-local, or otherwise non-public IP ranges (e.g. cloud
+    metadata endpoints). Set RESISTAI_ALLOW_PRIVATE_WEBHOOKS=true to relax
+    this for local development.
+    """
+    parsed = urlparse(url)
+    allowed_schemes = {"http", "https"} if _ALLOW_PRIVATE_WEBHOOKS else {"https"}
+    if parsed.scheme not in allowed_schemes:
+        raise ValueError(
+            f"Webhook URL must use one of {sorted(allowed_schemes)} (got {parsed.scheme!r})"
+        )
+    host = parsed.hostname
+    if not host:
+        raise ValueError("Webhook URL has no host")
+    if _ALLOW_PRIVATE_WEBHOOKS:
+        return
+    try:
+        infos = socket.getaddrinfo(host, parsed.port or 443, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise ValueError(f"Webhook host does not resolve: {host}") from exc
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
+            raise ValueError(
+                f"Webhook host {host} resolves to a non-public address ({ip}); refused"
+            )
 
 
 @dataclass
@@ -59,6 +100,7 @@ class WebhookManager:
         invalid = [e for e in resolved_events if e not in EVENTS]
         if invalid:
             raise ValueError(f"Unknown event(s): {invalid}")
+        _validate_webhook_url(url)
         hook = WebhookConfig(
             url=url,
             events=resolved_events,
@@ -120,10 +162,13 @@ class WebhookManager:
         result: dict[str, Any] = {"url": hook.url, "event": event}
         start = time.monotonic()
         try:
+            # Re-validate at delivery time to guard against DNS rebinding /
+            # a hook constructed without going through register().
+            _validate_webhook_url(hook.url)
             resp = requests.post(hook.url, data=body, headers=headers, timeout=10)
             result["status"] = resp.status_code
             result["ok"] = 200 <= resp.status_code < 300
-        except requests.RequestException as exc:
+        except (requests.RequestException, ValueError) as exc:
             result["status"] = 0
             result["ok"] = False
             result["error"] = str(exc)

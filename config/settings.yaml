@@ -1,18 +1,25 @@
-# AMR-AI Configuration
+# ResistAI Configuration
 app:
-  name: "AMR-AI"
-  version: "0.1.0"
+  name: "ResistAI"
+  version: "1.0.0"
   description: "AI Drug Discovery Platform for Antimicrobial Resistance"
 
-# Nebius AI Studio (BioNeMo NIM)
+# Nebius AI Studio (LLM reasoning -- Qwen3, DeepSeek-R1)
 nebius:
-  base_url: "https://api.tokenfactory.nebius.com/v1"
+  base_url: "https://api.studio.nebius.com/v1"
   # api_key loaded from NEBIUS_API_KEY env var
   models:
-    boltz2: "boltz-2"
-    evo2: "evo2-40b"
-    molmim: "molmim"
-    genmol: "genmol"
+    reasoning: "deepseek-ai/DeepSeek-R1-0528"
+    fast: "Qwen/Qwen3-235B-A22B-Instruct-2507"
+
+# NVIDIA NIM biology models (endpoints defined in src/models/nim/base.py)
+nim:
+  base_url: "https://health.api.nvidia.com/v1/biology"
+  models:
+    boltz2: "mit/boltz2"
+    evo2: "arc/evo2-40b"
+    molmim: "nvidia/molmim"
+    esmfold: "nvidia/esmfold"
 
 # ESM-2 (HuggingFace)
 esm2:

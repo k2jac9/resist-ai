@@ -1,5 +1,6 @@
 """UI package — assembles all tabs into a single Gradio app."""
 from __future__ import annotations
+import os
 import tempfile
 
 try:
@@ -195,8 +196,8 @@ def create_app() -> gr.Blocks:
                 def _save(j: str) -> str | None:
                     if not j or not j.strip():
                         return None
-                    p = tempfile.mktemp(suffix=".json", prefix="amrai_")
-                    with open(p, "w") as f:
+                    fd, p = tempfile.mkstemp(suffix=".json", prefix="amrai_")
+                    with os.fdopen(fd, "w") as f:
                         f.write(j)
                     return p
                 btn6.click(_save, [ex5], [fo])

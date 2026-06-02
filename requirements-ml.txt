@@ -1,0 +1,8 @@
+# Optional heavy ML dependencies for local ESM-2 protein embedding /
+# druggability scoring. ~2GB+ download. Install with:
+#   pip install -r requirements-ml.txt
+# Without these, src/pipeline/target_discovery/esm2_client.py falls back to
+# a deterministic sequence-property heuristic.
+
+torch>=2.1.0,<3.0
+transformers>=4.36.0,<5.0
