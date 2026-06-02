@@ -1,5 +1,13 @@
 """Shared fixtures for ResistAI test suite."""
+import os
+
 import pytest
+
+# The API fails closed when RESISTAI_API_KEY is unset. Run the default test
+# suite in explicit no-auth dev mode so endpoint/validation tests exercise the
+# handlers. Auth enforcement itself is covered separately in test_api_auth.py.
+# Must be set before src.api.server is imported (module reads it at import time).
+os.environ.setdefault("RESISTAI_ALLOW_NO_AUTH", "true")
 
 
 @pytest.fixture

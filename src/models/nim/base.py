@@ -61,32 +61,56 @@ class NIMBase:
             "Content-Type": "application/json",
         }
 
+    # Retry config for transient failures (429 / 5xx / timeouts).
+    _MAX_RETRIES = 3
+    _BACKOFF_BASE = 2.0
+
     def _post(self, endpoint: str, payload: dict, timeout: int | None = None) -> dict | str:
-        """POST to a NIM endpoint, return parsed JSON or raw text."""
+        """POST to a NIM endpoint with retry/backoff, return parsed JSON or raw text."""
         if not self._available:
             raise RuntimeError("NIM client not available (no API key)")
 
         url = ENDPOINTS[endpoint]
+        req_timeout = timeout or self._timeout
         t0 = time.time()
-        resp = requests.post(
-            url, headers=self._headers(), json=payload,
-            timeout=timeout or self._timeout,
-        )
+        resp = None
+
+        for attempt in range(self._MAX_RETRIES):
+            try:
+                resp = requests.post(
+                    url, headers=self._headers(), json=payload, timeout=req_timeout,
+                )
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                if attempt == self._MAX_RETRIES - 1:
+                    raise RuntimeError(f"NIM {endpoint} request failed: {exc}") from exc
+                delay = self._BACKOFF_BASE ** attempt
+                logger.warning("NIM %s network error (%s); retry in %.0fs", endpoint, exc, delay)
+                time.sleep(delay)
+                continue
+
+            # Retry on rate-limit and server errors, honoring Retry-After.
+            if resp.status_code == 429 or 500 <= resp.status_code < 600:
+                if attempt == self._MAX_RETRIES - 1:
+                    break
+                retry_after = resp.headers.get("Retry-After")
+                try:
+                    delay = float(retry_after) if retry_after else self._BACKOFF_BASE ** attempt
+                except ValueError:
+                    delay = self._BACKOFF_BASE ** attempt
+                logger.warning(
+                    "NIM %s returned %d; retry %d/%d in %.0fs",
+                    endpoint, resp.status_code, attempt + 1, self._MAX_RETRIES, delay,
+                )
+                time.sleep(delay)
+                continue
+            break
+
         elapsed = (time.time() - t0) * 1000
 
-        if resp.status_code == 429:
-            logger.warning("NIM rate limited on %s; retrying after 3s", endpoint)
-            time.sleep(3)
-            resp = requests.post(
-                url, headers=self._headers(), json=payload,
-                timeout=timeout or self._timeout,
-            )
-            elapsed = (time.time() - t0) * 1000
-
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"NIM {endpoint} returned {resp.status_code}: {resp.text[:300]}"
-            )
+        if resp is None or resp.status_code != 200:
+            code = resp.status_code if resp is not None else "no response"
+            body = resp.text[:300] if resp is not None else ""
+            raise RuntimeError(f"NIM {endpoint} returned {code}: {body}")
 
         content_type = resp.headers.get("content-type", "")
         if "application/json" in content_type:

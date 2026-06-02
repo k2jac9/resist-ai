@@ -7,7 +7,6 @@ and Nebius LLMs: target discovery → drug screening + novel generation
 from __future__ import annotations
 
 import logging
-import random
 import time
 from typing import Any, Callable, Optional
 
@@ -122,7 +121,8 @@ class TargetAnalyzer:
                 if "ESM-2" in model_used:
                     logger.info("ESM-2 druggability %s: %.3f (%s)", name, score, model_used)
             else:
-                score = _compute_druggability(sequence) if sequence else round(random.uniform(0.70, 0.98), 3)
+                # Deterministic structure/sequence-based score; no random fabrication.
+                score = _compute_druggability(sequence) if sequence else 0.5
 
             function_desc = t.get("function", "")
             if structure_data:
@@ -159,6 +159,8 @@ class DrugScreener:
         target_seq = _DEMO_SEQUENCES.get(target.name, "")
         hits: list[ScreeningHit] = []
 
+        from .stages import heuristic_binding_score
+
         for idx, drug in enumerate(library):
             smiles = drug["smiles"]
             affinity = 0.0
@@ -174,11 +176,12 @@ class DrugScreener:
                     drug["name"], target.name, affinity, conf,
                 )
 
-            # Fallback to heuristic
+            # Fallback to a deterministic, structure-based heuristic
+            # (clearly labelled, not a Boltz-2 prediction).
             if affinity == 0.0:
-                random.seed(hash(drug["name"] + target.name) % (2**31))
-                affinity = round(random.uniform(0.35, 0.97), 3)
-                conf = round(random.uniform(0.60, 0.95), 3)
+                est = heuristic_binding_score(smiles, target.name)
+                affinity = est["affinity"]
+                conf = est["confidence"]
 
             hits.append(ScreeningHit(
                 rank=idx + 1,
@@ -271,7 +274,7 @@ class SafetyScorer:
         """Produce a safety report for a screening hit."""
         from .stages import stage_safety_score
 
-        data = stage_safety_score(hit.drug_name)
+        data = stage_safety_score(hit.drug_name, smiles=hit.smiles)
         admet_d = data["admet"]
         admet = ADMETResult(
             drug_name=hit.drug_name,
