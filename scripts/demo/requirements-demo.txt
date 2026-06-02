@@ -1,0 +1,9 @@
+# Extra dependencies for demo scripts (not required for the main app)
+#
+# Install with:
+#   pip install -r scripts/demo/requirements-demo.txt
+#   playwright install chromium   # for record_demo_video.py
+
+pyautogui==0.9.54       # take_screenshots.py
+playwright==1.51.0      # record_demo_video.py
+python-pptx==1.0.2      # create_presentation.py
