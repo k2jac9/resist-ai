@@ -122,8 +122,8 @@ Both paradigms run through the same orchestrated pipeline, accessible via a **Gr
 | 5 | **MolMIM** | Novel molecule generation & optimization | NVIDIA NIM | `nvidia/molmim` |
 | 6 | **RFdiffusion** | De novo protein backbone design | NVIDIA NIM | `nvidia/rfdiffusion` |
 | 7 | **ProteinMPNN** | Protein sequence design from backbone | NVIDIA NIM | `nvidia/proteinmpnn` |
-| 8 | **Qwen3-235B-A22B** | Clinical reasoning & report synthesis | Nebius AI | `Qwen/Qwen3-235B-A22B` |
-| 9 | **DeepSeek-R1** | Deep chain-of-thought analysis | Nebius AI | `deepseek-ai/DeepSeek-R1` |
+| 8 | **Qwen3-235B-A22B** | Clinical reasoning & report synthesis | Nebius AI | `Qwen/Qwen3-235B-A22B-Instruct-2507` |
+| 9 | **DeepSeek-R1** | Deep chain-of-thought analysis | Nebius AI | `deepseek-ai/DeepSeek-R1-0528` |
 
 ---
 
@@ -181,6 +181,10 @@ Real outputs from live API calls during the hackathon:
 git clone https://github.com/your-org/resist-ai.git
 cd resist-ai
 pip install -r requirements.txt
+
+# Optional: local ESM-2 druggability scoring (~2GB, falls back to a
+# sequence heuristic if not installed)
+pip install -r requirements-ml.txt
 ```
 
 ### Configure
@@ -202,16 +206,23 @@ python -m src.app
 ### Run the REST API
 
 ```bash
+# The API fails closed: set an API key to enable it...
+export RESISTAI_API_KEY=$(openssl rand -hex 16)
+# ...or disable auth for local dev only:
+# export RESISTAI_ALLOW_NO_AUTH=true
+
 uvicorn src.api:app --host 0.0.0.0 --port 8000
 # Docs at http://localhost:8000/docs
+# Authenticated requests send the key as the `X-API-Key` header.
 ```
 
 ### Run a Pipeline via CLI
 
 ```bash
-python -m src.pipeline.orchestrator \
+python -m src.cli run \
   --pathogen klebsiella_pneumoniae \
-  --target NDM-1
+  --max-drugs 100 \
+  --novel
 ```
 
 ---
@@ -219,33 +230,34 @@ python -m src.pipeline.orchestrator \
 ## SDK Usage
 
 ```python
-from src.sdk import MoleculeOptimizer, Candidate
-from src.sdk.target import Target
-from src.pipeline.orchestrator import PipelineOrchestrator
+from src.sdk import Pipeline, Target, MoleculeOptimizer
 
-# Define target from PDB
-target = Target.from_pdb("6BPY")  # NDM-1 crystal structure
+# Define a target (from PDB, UniProt, or a raw sequence)
+target = Target.from_pdb("3SPU", name="NDM-1")  # NDM-1 crystal structure
 
-# Run full pipeline
-pipeline = PipelineOrchestrator()
-results = pipeline.run(
-    pathogen="klebsiella_pneumoniae",
-    target_name="NDM-1",
+# Build and run a composable pipeline
+results = (
+    Pipeline(target)
+    .fold()                 # ESMFold structure prediction
+    .screen(max_drugs=100)  # Boltz-2 virtual screening
+    .dock(top_k=3)          # DiffDock pose generation
+    .run(progress=True)
 )
+print(results.to_report())
 
-# Access ranked candidates
-for candidate in results.candidates[:5]:
-    print(f"{candidate.drug_name}: score={candidate.composite_score:.3f}")
-
-# Optimize a hit
-optimizer = MoleculeOptimizer()
-optimized = optimizer.optimize(
-    smiles="CC1=CC=C(C=C1)C(=O)N",
-    target_pdb="6BPY",
-    n_generations=3,
+# Closed-loop multi-objective molecule optimisation
+optimizer = MoleculeOptimizer(
+    target_sequence=target.sequence,
+    seed_smiles="CC1=CC=C(C=C1)C(=O)N",
+    objectives=["binding", "qed", "lipinski", "toxicity"],
+    max_iterations=3,
 )
-print(f"Best QED: {optimized.best.qed:.2f}")
+opt = optimizer.run()
+print(opt.summary())
 ```
+
+> Run the full orchestrated pipeline programmatically with
+> `PipelineOrchestrator().run_full_pipeline(pathogen_name="klebsiella_pneumoniae")`.
 
 ---
 
@@ -260,7 +272,7 @@ resist-ai/
       orchestrator.py               # 4-stage pipeline coordinator
       target_discovery/
         evo2_client.py              # Evo2-40b genomic analysis
-        esm2_client.py              # ESMFold structure prediction
+        esm2_client.py              # ESM-2 embeddings (druggability scoring)
         target_analyzer.py          # Druggability scoring
       drug_screening/
         boltz2_client.py            # Boltz-2 binding prediction
@@ -302,8 +314,8 @@ resist-ai/
 | Pipeline Orchestration | Python, async coordination |
 | Web UI | Gradio 4.x |
 | REST API | FastAPI + Uvicorn |
-| Cheminformatics | RDKit, BioPython, PubChemPy |
-| Visualization | Plotly, py3Dmol |
+| Cheminformatics | RDKit |
+| Visualization | Plotly, 3Dmol.js |
 | Data Sources | PDB, UniProt, DrugBank |
 
 ---

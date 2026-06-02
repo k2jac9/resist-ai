@@ -10,6 +10,7 @@ Quick start::
 """
 
 from src.sdk.batch import BatchResults, BatchRunner, ComparisonReport
+from src.sdk.optimizer import Candidate, MoleculeOptimizer, OptimizationResult
 from src.sdk.pipeline import Pipeline
 from src.sdk.results import (
     BinderDesign,
@@ -37,4 +38,7 @@ __all__ = [
     "BatchRunner",
     "BatchResults",
     "ComparisonReport",
+    "MoleculeOptimizer",
+    "Candidate",
+    "OptimizationResult",
 ]

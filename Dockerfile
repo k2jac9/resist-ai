@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -18,6 +18,11 @@ COPY scripts/ scripts/
 # Copy entrypoint
 COPY config/docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Run as a non-root user
+RUN adduser --system --group --no-create-home app \
+    && chown -R app:app /app
+USER app
 
 # Expose ports
 EXPOSE 7860 8000
