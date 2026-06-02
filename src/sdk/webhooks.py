@@ -228,17 +228,16 @@ def format_slack_message(event: str, payload: dict[str, Any]) -> dict[str, Any]:
         {"type": "mrkdwn", "text": f"*{k}:*\n{v}"}
         for k, v in list(payload.items())[:8]
     ]
+    blocks: list[dict[str, Any]] = [
+        {"type": "header", "text": {"type": "plain_text", "text": header}},
+    ]
+    if fields:
+        blocks.append({"type": "section", "fields": fields})
     return {
         "attachments": [
             {
                 "color": color,
-                "blocks": [
-                    {
-                        "type": "header",
-                        "text": {"type": "plain_text", "text": header},
-                    },
-                    {"type": "section", "fields": fields} if fields else None,
-                ],
+                "blocks": blocks,
             }
         ]
     }
