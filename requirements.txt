@@ -1,31 +1,28 @@
-# Core runtime dependencies.
-# Version ranges are capped at the next major to keep builds reproducible
-# and avoid silent breaking upgrades. Run `pip-compile` for a full lockfile.
-#
+# Core runtime dependencies, pinned to the latest stable releases.
 # Heavy/optional ML deps (torch, transformers) live in requirements-ml.txt.
 # Without them, ESM-2 druggability scoring falls back to a sequence heuristic.
 
 # Core
-fastapi>=0.104.0,<1.0
-uvicorn>=0.24.0,<1.0
-pydantic>=2.5.0,<3.0
+fastapi==0.136.3
+uvicorn==0.48.0
+pydantic==2.13.4
 
 # Cheminformatics
-rdkit>=2024.3.1,<2025.0
+rdkit==2026.3.2
 
 # Numerics
-numpy>=1.24.0,<2.0
-pandas>=2.0.0,<3.0
+numpy==2.4.6
+pandas==3.0.3
 
 # API clients
-openai>=1.6.0,<2.0
-requests>=2.31.0,<3.0
-httpx>=0.25.0,<1.0
+openai==2.40.0
+requests==2.34.2
+httpx==0.28.1
 
 # Visualization / Frontend
-gradio>=4.8.0,<5.0
-plotly>=5.18.0,<6.0
+gradio==6.15.2
+plotly==6.7.0
 
 # Data / config
-python-dotenv>=1.0.0,<2.0
-pyyaml>=6.0.1,<7.0
+python-dotenv==1.2.2
+pyyaml==6.0.3

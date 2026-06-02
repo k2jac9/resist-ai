@@ -22,7 +22,7 @@ was performed and the findings below were remediated in this branch.
 
 - Path traversal / constrained SSRF in `pdb_fetcher.py` → strict PDB (`^[A-Z0-9]{4}$`) / UniProt (`^[A-Z0-9]{6,10}$`) validation.
 - Internal exceptions leaked to API clients → generic `"Internal server error"`; details logged server-side only.
-- Unpinned `>=` deps → upper-bounded ranges; pruned 5 unused deps (`py3Dmol`, `pubchempy`, `scikit-learn`, `biopython`, `aiofiles`); heavy `torch`/`transformers` moved to `requirements-ml.txt`.
+- Unpinned `>=` deps → **all dependencies pinned (`==`) to their latest stable releases** (clears Dependabot advisories); pruned 5 unused deps (`py3Dmol`, `pubchempy`, `scikit-learn`, `biopython`, `aiofiles`); heavy `torch`/`transformers` moved to `requirements-ml.txt`. Major bumps (gradio 4→6, numpy→2, pandas→3, openai→2, transformers→5) verified: 49 tests pass, all modules import, Gradio UI builds.
 - Unrelated Node `package.json`/`package-lock.json` (`agentic-flow`) removed; duplicate 5MB `ResistAI.png` removed.
 - Config drift in `settings.yaml` (Nebius URL, branding, NIM vs Nebius models) corrected.
 - NIM client retry was single-shot → retry with backoff + `Retry-After`, retries 5xx/timeouts.
