@@ -6,8 +6,7 @@ plain dicts so that callers can map results into their own schema types.
 from __future__ import annotations
 
 import logging
-import random
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +28,32 @@ def stage_genomics(nim: Any, sequence: str, num_tokens: int = 128) -> dict:
     except Exception as exc:
         logger.warning("Evo2 analysis failed: %s", exc)
     return {"success": False}
+
+
+def heuristic_binding_score(smiles: str, target_name: str = "") -> dict:
+    """Deterministic, structure-based binding estimate (no NIM required).
+
+    Derived from RDKit molecular descriptors (drug-like MW/LogP windows),
+    so the same molecule always yields the same score. Returned values are
+    explicitly tagged ``model="heuristic_docking"`` so callers never present
+    them as Boltz-2 predictions.
+
+    Returns {affinity, confidence, model}.
+    """
+    from src.utils.chemistry import compute_descriptors
+
+    desc = compute_descriptors(smiles) if smiles else None
+    if desc is None:
+        # No structure: deterministic-but-clearly-low placeholder.
+        return {"affinity": 0.4, "confidence": 0.3, "model": "heuristic_docking"}
+
+    mw = desc.get("MW", 400.0)
+    log_p = desc.get("LogP", 2.5)
+    mw_score = max(0.0, 1.0 - abs(mw - 400.0) / 400.0)
+    logp_score = max(0.0, 1.0 - abs(log_p - 2.5) / 5.0)
+    affinity = round(min(0.97, 0.35 + 0.45 * mw_score + 0.2 * logp_score), 3)
+    confidence = round(min(0.9, 0.5 + 0.4 * mw_score), 3)
+    return {"affinity": affinity, "confidence": confidence, "model": "heuristic_docking"}
 
 
 # Lazy-loaded ESM-2 client (heavy — 650M params)
@@ -228,64 +253,110 @@ def stage_design_binder(
 
 
 
-def stage_safety_score(drug_name: str, seed: Optional[int] = None) -> dict:
-    """Run ADMET + off-target safety scoring (heuristic)."""
-    if seed is None:
-        seed = hash(drug_name) % (2**31)
-    random.seed(seed)
-    tox = round(random.uniform(0.05, 0.40), 3)
-    safety = round(1.0 - tox, 3)
+def stage_safety_score(drug_name: str, smiles: str = "") -> dict:
+    """Run ADMET + off-target safety scoring.
+
+    Uses the deterministic, RDKit-descriptor-based ADMET predictor and the
+    Tanimoto-similarity off-target analyzer. Scores are derived from the
+    molecule's actual structure (``smiles``), not random numbers. When no
+    SMILES is available the result is flagged as unavailable rather than
+    fabricated.
+
+    Returns a dict with a ``provenance`` field describing how scores were
+    produced so callers never present heuristics as measured values.
+    """
+    if not smiles or not smiles.strip():
+        # No structure to analyze -- do not invent numbers.
+        return {
+            "toxicity": 0.0,
+            "safety_score": 0.0,
+            "admet": {
+                "absorption": 0.0, "distribution": 0.0, "metabolism": 0.0,
+                "excretion": 0.0, "toxicity_score": 0.0,
+                "oral_bioavailability": False, "bbb_penetration": False,
+                "herg_liability": False,
+            },
+            "off_targets": [],
+            "high_risk": False,
+            "flags": ["safety_unavailable_no_structure"],
+            "recommendation": "insufficient_data",
+            "provenance": "unavailable (no SMILES provided)",
+        }
+
+    from src.pipeline.safety_prediction.admet_predictor import ADMETPredictor
+    from src.pipeline.safety_prediction.off_target_analyzer import OffTargetAnalyzer
+
+    try:
+        admet_full = ADMETPredictor().predict_admet(smiles)
+    except Exception as exc:
+        logger.warning("ADMET prediction failed for %s: %s", drug_name, exc)
+        return {
+            "toxicity": 0.0, "safety_score": 0.0,
+            "admet": {
+                "absorption": 0.0, "distribution": 0.0, "metabolism": 0.0,
+                "excretion": 0.0, "toxicity_score": 0.0,
+                "oral_bioavailability": False, "bbb_penetration": False,
+                "herg_liability": False,
+            },
+            "off_targets": [], "high_risk": False,
+            "flags": ["safety_unavailable_invalid_structure"],
+            "recommendation": "insufficient_data",
+            "provenance": f"unavailable (ADMET error: {exc})",
+        }
+
+    tox_d = admet_full.toxicity
+    cyp = admet_full.metabolism
+    # Collapse the rich ADMET dicts into the schema's per-category quality
+    # scores (higher = more favorable), all derived from real descriptors.
+    hia = admet_full.absorption.get("human_intestinal_absorption", 0.0)
+    ppb = admet_full.distribution.get("plasma_protein_binding", 50.0)
+    cyp_mean = (sum(cyp.values()) / len(cyp)) if cyp else 0.0
+    clearance = admet_full.excretion.get("total_clearance", 0.5)
+    herg = tox_d.get("herg_inhibition", 0.0)
+    toxicity_score = round(
+        (herg + tox_d.get("ames_mutagenicity", 0.0)
+         + tox_d.get("hepatotoxicity", 0.0)) / 3.0, 3
+    )
 
     admet = {
-        "absorption": round(random.uniform(0.5, 0.95), 2),
-        "distribution": round(random.uniform(0.4, 0.9), 2),
-        "metabolism": round(random.uniform(0.3, 0.85), 2),
-        "excretion": round(random.uniform(0.4, 0.9), 2),
-        "toxicity_score": tox,
-        "oral_bioavailability": random.random() > 0.3,
-        "bbb_penetration": random.random() > 0.7,
-        "herg_liability": random.random() > 0.85,
+        "absorption": round(hia / 100.0, 3),
+        "distribution": round(1.0 - min(1.0, ppb / 100.0), 3),
+        "metabolism": round(1.0 - min(1.0, cyp_mean), 3),
+        "excretion": round(min(1.0, clearance / 2.0), 3),
+        "toxicity_score": toxicity_score,
+        "oral_bioavailability": bool(hia >= 30.0),
+        "bbb_penetration": bool(admet_full.distribution.get("bbb_penetration", 0.0) > 0.5),
+        "herg_liability": bool(herg > 0.5),
     }
 
-    off_targets = _generate_off_targets(drug_name, seed + 1)
-    high_risk = any(ot["risk_level"] == "high" for ot in off_targets)
+    ot_report = OffTargetAnalyzer().analyze_off_targets(smiles)
+    off_targets: list[dict] = []
+    for ot in ot_report.off_targets:
+        sim = ot.similarity_score
+        risk = "high" if sim > 0.6 else ("medium" if sim > 0.35 else "low")
+        off_targets.append({
+            "protein_name": ot.protein_name,
+            "similarity": sim,
+            "risk_level": risk,
+            "tissue": ot.tissue_expression,
+        })
+    high_risk = ot_report.risk_level == "high"
 
     flags: list[str] = []
     if admet["herg_liability"]:
         flags.append("hERG_liability")
     if high_risk:
         flags.append("off_target_high_risk")
-    if admet["toxicity_score"] > 0.3:
+    if toxicity_score > 0.3:
         flags.append("elevated_toxicity")
 
     return {
-        "toxicity": tox,
-        "safety_score": safety,
+        "toxicity": toxicity_score,
+        "safety_score": admet_full.overall_safety_score,
         "admet": admet,
         "off_targets": off_targets,
         "high_risk": high_risk,
         "flags": flags,
         "recommendation": "caution" if flags else "proceed",
+        "provenance": "RDKit ADMET heuristic + Tanimoto off-target panel",
     }
-
-
-def _generate_off_targets(drug_name: str, seed: int) -> list[dict]:
-    """Generate plausible off-target predictions."""
-    random.seed(seed)
-    panel = [
-        ("CYP3A4", "liver"), ("CYP2D6", "liver"), ("hERG", "cardiac"),
-        ("GABAA", "CNS"), ("COX-2", "GI tract"), ("PDE5", "vascular"),
-    ]
-    count = random.randint(1, 3)
-    selected = random.sample(panel, min(count, len(panel)))
-    results: list[dict] = []
-    for protein, tissue in selected:
-        sim = round(random.uniform(0.25, 0.80), 2)
-        risk = "high" if sim > 0.7 else ("medium" if sim > 0.5 else "low")
-        results.append({
-            "protein_name": protein,
-            "similarity": sim,
-            "risk_level": risk,
-            "tissue": tissue,
-        })
-    return results

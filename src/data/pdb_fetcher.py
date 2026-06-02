@@ -7,6 +7,7 @@ from the UniProt REST API, caching files locally under data/structures/.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,26 @@ import httpx
 from src.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# PDB IDs are 4 alphanumeric chars; UniProt accessions are 6-10 alphanumerics.
+_PDB_ID_RE = re.compile(r"^[A-Z0-9]{4}$")
+_UNIPROT_ID_RE = re.compile(r"^[A-Z0-9]{6,10}$")
+
+
+def _validate_pdb_id(pdb_id: str) -> str:
+    """Normalise and strictly validate a PDB identifier (prevents traversal/SSRF)."""
+    pdb_id = pdb_id.strip().upper()
+    if not _PDB_ID_RE.match(pdb_id):
+        raise ValueError(f"Invalid PDB ID: {pdb_id!r}")
+    return pdb_id
+
+
+def _validate_uniprot_id(uniprot_id: str) -> str:
+    """Normalise and strictly validate a UniProt accession."""
+    uniprot_id = uniprot_id.strip().upper()
+    if not _UNIPROT_ID_RE.match(uniprot_id):
+        raise ValueError(f"Invalid UniProt accession: {uniprot_id!r}")
+    return uniprot_id
 
 
 class PDBFetcher:
@@ -35,7 +56,7 @@ class PDBFetcher:
         Returns:
             Path to the downloaded file, or ``None`` on failure.
         """
-        pdb_id = pdb_id.strip().upper()
+        pdb_id = _validate_pdb_id(pdb_id)
         dest = self._structures_dir / f"{pdb_id}.pdb"
         if dest.exists():
             logger.debug("PDB %s already cached at %s", pdb_id, dest)
@@ -62,7 +83,7 @@ class PDBFetcher:
         Returns:
             Path to the downloaded FASTA file, or ``None`` on failure.
         """
-        uniprot_id = uniprot_id.strip()
+        uniprot_id = _validate_uniprot_id(uniprot_id)
         dest = self._structures_dir / f"{uniprot_id}.fasta"
         if dest.exists():
             logger.debug("FASTA %s already cached at %s", uniprot_id, dest)
@@ -89,7 +110,7 @@ class PDBFetcher:
         Returns:
             Path to the PDB file, or ``None`` if download fails.
         """
-        pdb_id = pdb_id.strip().upper()
+        pdb_id = _validate_pdb_id(pdb_id)
         dest = self._structures_dir / f"{pdb_id}.pdb"
         if dest.exists():
             return dest

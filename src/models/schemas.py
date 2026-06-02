@@ -297,6 +297,30 @@ class PipelineResults:
             "metadata": self.metadata,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> PipelineResults:
+        return cls(
+            pathogen=data["pathogen"],
+            targets=[TargetResult.from_dict(t) for t in data.get("targets", [])],
+            screening_results=[
+                ScreeningResults.from_dict(s) for s in data.get("screening_results", [])
+            ],
+            safety_reports=[
+                SafetyReport.from_dict(r) for r in data.get("safety_reports", [])
+            ],
+            top_candidates=[
+                DrugCandidate.from_dict(c) for c in data.get("top_candidates", [])
+            ],
+            metadata=data.get("metadata", {}),
+        )
+
+    def __str__(self) -> str:
+        return (
+            f"PipelineResults({self.pathogen}: "
+            f"{len(self.targets)} targets, "
+            f"{len(self.top_candidates)} candidates)"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Regulatory Intelligence
@@ -403,27 +427,3 @@ class RegulatoryReport:
 
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> PipelineResults:
-        return cls(
-            pathogen=data["pathogen"],
-            targets=[TargetResult.from_dict(t) for t in data.get("targets", [])],
-            screening_results=[
-                ScreeningResults.from_dict(s) for s in data.get("screening_results", [])
-            ],
-            safety_reports=[
-                SafetyReport.from_dict(r) for r in data.get("safety_reports", [])
-            ],
-            top_candidates=[
-                DrugCandidate.from_dict(c) for c in data.get("top_candidates", [])
-            ],
-            metadata=data.get("metadata", {}),
-        )
-
-    def __str__(self) -> str:
-        return (
-            f"PipelineResults({self.pathogen}: "
-            f"{len(self.targets)} targets, "
-            f"{len(self.top_candidates)} candidates)"
-        )

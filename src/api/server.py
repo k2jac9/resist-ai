@@ -7,9 +7,11 @@ Run with: uvicorn src.api.server:app --port 8000
 """
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Any, Optional
 
@@ -74,20 +76,39 @@ class APIResponse(BaseModel):
 # App setup
 # ---------------------------------------------------------------------------
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup/shutdown lifecycle: log NIM availability on boot."""
+    nim = _get_nim()
+    if nim.available:
+        logger.info("NIM client available with API key")
+    else:
+        logger.warning("NIM client unavailable -- endpoints will use fallback/mock data")
+    yield
+
+
 app = FastAPI(
     title="ResistAI API",
     description="AMR drug discovery pipeline powered by NVIDIA NIM biology models",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
+
+# CORS: never combine a wildcard origin with credentials. Origins are read
+# from RESISTAI_CORS_ORIGINS (comma-separated); default is no cross-origin
+# access. Set to "*" explicitly only for local/dev use (credentials disabled).
+_cors_origins_env = os.environ.get("RESISTAI_CORS_ORIGINS", "").strip()
+_cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+_allow_credentials = bool(_cors_origins) and "*" not in _cors_origins
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins,
+    allow_credentials=_allow_credentials,
+    allow_methods=["GET", "POST"],
+    allow_headers=["X-API-Key", "Content-Type"],
 )
 
 # ---------------------------------------------------------------------------
@@ -96,13 +117,30 @@ app.add_middleware(
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 _REQUIRED_KEY = os.environ.get("RESISTAI_API_KEY", "")
+# Fail closed unless the operator explicitly opts out of auth for local dev.
+_ALLOW_NO_AUTH = os.environ.get("RESISTAI_ALLOW_NO_AUTH", "").lower() in ("1", "true", "yes")
+
+if not _REQUIRED_KEY and not _ALLOW_NO_AUTH:
+    logger.warning(
+        "RESISTAI_API_KEY is not set -- all endpoints will reject requests with 503. "
+        "Set RESISTAI_API_KEY to enable the API, or RESISTAI_ALLOW_NO_AUTH=true for local dev."
+    )
 
 
 async def verify_api_key(api_key: Optional[str] = Security(_api_key_header)) -> Optional[str]:
-    """Validate X-API-Key header. Skip check if RESISTAI_API_KEY is not configured."""
+    """Validate the X-API-Key header.
+
+    Fails closed: if no key is configured the API is disabled (503) unless
+    RESISTAI_ALLOW_NO_AUTH is explicitly enabled. Comparison is timing-safe.
+    """
     if not _REQUIRED_KEY:
-        return api_key
-    if api_key != _REQUIRED_KEY:
+        if _ALLOW_NO_AUTH:
+            return api_key
+        raise HTTPException(
+            status_code=503,
+            detail="API authentication is not configured. Set RESISTAI_API_KEY.",
+        )
+    if not api_key or not hmac.compare_digest(api_key, _REQUIRED_KEY):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
     return api_key
 
@@ -159,24 +197,11 @@ def _timed(func, *args, **kwargs) -> tuple[Any, float]:
 
 
 # ---------------------------------------------------------------------------
-# Startup
-# ---------------------------------------------------------------------------
-
-@app.on_event("startup")
-async def startup_check():
-    nim = _get_nim()
-    if nim.available:
-        logger.info("NIM client available with API key")
-    else:
-        logger.warning("NIM client unavailable -- endpoints will use fallback/mock data")
-
-
-# ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
 @app.post("/v1/pipeline/run", response_model=APIResponse)
-async def run_pipeline(req: PipelineRequest, _key: str = Security(verify_api_key)):
+def run_pipeline(req: PipelineRequest, _key: str = Security(verify_api_key)):
     """Run the full AMR drug discovery pipeline for a pathogen."""
     try:
         orch = _get_orchestrator()
@@ -191,11 +216,11 @@ async def run_pipeline(req: PipelineRequest, _key: str = Security(verify_api_key
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
         logger.exception("Pipeline failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/predict/binding", response_model=APIResponse)
-async def predict_binding(req: BindingRequest, _key: str = Security(verify_api_key)):
+def predict_binding(req: BindingRequest, _key: str = Security(verify_api_key)):
     """Predict protein-ligand binding affinity using Boltz-2."""
     nim = _get_nim()
     if not nim.available:
@@ -205,11 +230,11 @@ async def predict_binding(req: BindingRequest, _key: str = Security(verify_api_k
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Binding prediction failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/predict/structure", response_model=APIResponse)
-async def predict_structure(req: StructureRequest, _key: str = Security(verify_api_key)):
+def predict_structure(req: StructureRequest, _key: str = Security(verify_api_key)):
     """Predict protein 3D structure using ESMFold."""
     nim = _get_nim()
     if not nim.available:
@@ -219,11 +244,11 @@ async def predict_structure(req: StructureRequest, _key: str = Security(verify_a
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Structure prediction failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/generate/molecules", response_model=APIResponse)
-async def generate_molecules(req: GenerateRequest, _key: str = Security(verify_api_key)):
+def generate_molecules(req: GenerateRequest, _key: str = Security(verify_api_key)):
     """Generate novel optimized molecules using MolMIM."""
     nim = _get_nim()
     if not nim.available:
@@ -238,11 +263,11 @@ async def generate_molecules(req: GenerateRequest, _key: str = Security(verify_a
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Molecule generation failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/generate/dna", response_model=APIResponse)
-async def generate_dna(req: DNAGenerateRequest, _key: str = Security(verify_api_key)):
+def generate_dna(req: DNAGenerateRequest, _key: str = Security(verify_api_key)):
     """Generate DNA sequences using Evo2-40b."""
     nim = _get_nim()
     if not nim.available:
@@ -252,11 +277,11 @@ async def generate_dna(req: DNAGenerateRequest, _key: str = Security(verify_api_
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("DNA generation failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/dock", response_model=APIResponse)
-async def dock_molecule(req: DockRequest, _key: str = Security(verify_api_key)):
+def dock_molecule(req: DockRequest, _key: str = Security(verify_api_key)):
     """Predict 3D binding pose using DiffDock."""
     nim = _get_nim()
     if not nim.available:
@@ -271,11 +296,11 @@ async def dock_molecule(req: DockRequest, _key: str = Security(verify_api_key)):
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
     except Exception as exc:
         logger.exception("Docking failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/v1/design/binder", response_model=APIResponse)
-async def design_binder(req: BinderRequest, _key: str = Security(verify_api_key)):
+def design_binder(req: BinderRequest, _key: str = Security(verify_api_key)):
     """Design a protein binder using RFdiffusion + ProteinMPNN.
 
     First folds the target sequence with ESMFold, then designs a binder
@@ -314,11 +339,11 @@ async def design_binder(req: BinderRequest, _key: str = Security(verify_api_key)
         raise
     except Exception as exc:
         logger.exception("Binder design failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/v1/health", response_model=APIResponse)
-async def health_check():
+def health_check():
     """Check availability of all NIM endpoints."""
     nim = _get_nim()
     if not nim.available:
@@ -337,11 +362,11 @@ async def health_check():
         )
     except Exception as exc:
         logger.exception("Health check failed")
-        return APIResponse(success=False, error=str(exc))
+        return APIResponse(success=False, error="Health check failed")
 
 
 @app.get("/v1/models", response_model=APIResponse)
-async def list_models():
+def list_models():
     """List available NIM models and their status."""
     from src.models.nim_client import ENDPOINTS
 
@@ -372,5 +397,5 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
-        content={"success": False, "error": str(exc), "data": None, "elapsed_ms": 0.0},
+        content={"success": False, "error": "Internal server error", "data": None, "elapsed_ms": 0.0},
     )
