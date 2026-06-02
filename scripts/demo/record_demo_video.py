@@ -2,12 +2,25 @@
 Automated Demo Video Recording for ResistAI
 Uses Playwright to automate browser interactions and record video
 Includes the new Regulatory Intelligence tab!
+
+Requires:
+    pip install -r scripts/demo/requirements-demo.txt
+    playwright install chromium
 """
 
+import sys
+
+try:
+    from playwright.sync_api import sync_playwright
+except ImportError:
+    print("playwright not installed. Run:")
+    print("  pip install -r scripts/demo/requirements-demo.txt")
+    print("  playwright install chromium")
+    sys.exit(1)
+
+import subprocess
 import time
 from pathlib import Path
-from playwright.sync_api import sync_playwright, expect
-import subprocess
 
 # Configuration
 BASE_URL = "http://localhost:7860"
