@@ -1,5 +1,6 @@
 """UI package — assembles all tabs into a single Gradio app."""
 from __future__ import annotations
+import os
 import tempfile
 
 try:
@@ -7,7 +8,7 @@ try:
 except ImportError:
     raise SystemExit("gradio is required: pip install gradio>=4.8.0")
 
-from src.ui.common import PATHOGENS, _EXAMPLE_TARGETS, _EXAMPLE_DRUGS_SAFETY, _CSS
+from src.ui.common import PATHOGENS, _EXAMPLE_TARGETS, _EXAMPLE_DRUGS_SAFETY
 from src.ui import tab_problem, tab_pipeline, tab_models, tab_safety, tab_viewer, tab_compare, tab_report, tab_regulatory
 from src.comparison import DIMENSIONS as _CMP_DIMS
 
@@ -195,8 +196,8 @@ def create_app() -> gr.Blocks:
                 def _save(j: str) -> str | None:
                     if not j or not j.strip():
                         return None
-                    p = tempfile.mktemp(suffix=".json", prefix="amrai_")
-                    with open(p, "w") as f:
+                    fd, p = tempfile.mkstemp(suffix=".json", prefix="amrai_")
+                    with os.fdopen(fd, "w") as f:
                         f.write(j)
                     return p
                 btn6.click(_save, [ex5], [fo])

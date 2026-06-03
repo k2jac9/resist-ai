@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 

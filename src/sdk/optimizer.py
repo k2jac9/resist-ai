@@ -27,7 +27,6 @@ from src.models.nim_client import NIMClient
 from src.utils.chemistry import (
     compute_descriptors,
     passes_lipinski,
-    tanimoto_similarity,
     validate_smiles,
 )
 

@@ -32,6 +32,7 @@ __all__ = [
     "NIMBase",
     "ENDPOINTS",
     "NIM_BASE",
+    "_get_api_key",
     "ESMFoldResult",
     "Evo2Result",
     "Boltz2Result",

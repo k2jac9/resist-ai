@@ -11,10 +11,12 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 import yaml
+
+from src.utils.chemistry import compute_descriptors, RDKIT_AVAILABLE
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +26,6 @@ try:
     OPENAI_SDK_AVAILABLE = True
 except ImportError:
     OPENAI_SDK_AVAILABLE = False
-
-from src.utils.chemistry import compute_descriptors, RDKIT_AVAILABLE
 
 if RDKIT_AVAILABLE:
     from rdkit import Chem

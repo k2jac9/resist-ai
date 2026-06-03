@@ -3,19 +3,19 @@ from __future__ import annotations
 import logging
 import time
 
+from src.ui.common import (
+    PATHOGENS, _COMPOUNDS, TARGET_DETAILS,
+    _to_df, _mode_badge, _explain_score,
+    get_orch, get_llm,
+    get_demo_targets, _demo_candidates_to_display,
+)
+
 logger = logging.getLogger(__name__)
 
 try:
     import gradio as gr
 except ImportError:
     raise SystemExit("gradio is required: pip install gradio>=4.8.0")
-
-from src.ui.common import (
-    PATHOGENS, _COMPOUNDS, TARGET_DETAILS,
-    _to_df, _mode_badge, _explain_score,
-    get_pmgr, get_orch, get_llm,
-    get_demo_candidates, get_demo_targets, _demo_candidates_to_display,
-)
 
 _PIPELINE_INTRO = """
 ### 9 AI Models, 10 Pipeline Stages, 3 Providers
@@ -122,7 +122,7 @@ def run_pipeline_ui(label: str, max_n: int, demo: bool, progress=gr.Progress()):
                     bind = mol.get("binding_confidence", 0)
                     tgt = mol.get("target", "")
                     summary += f"| {i+1} | `{smi}` | {qed:.3f} | {seed} | {bind:.3f} | {tgt} |\n"
-                summary += f"\n*Generated via MolMIM (NVIDIA NIM) with Boltz-2 binding validation*\n"
+                summary += "\n*Generated via MolMIM (NVIDIA NIM) with Boltz-2 binding validation*\n"
 
             models_list = results.metadata.get("models_used", [])
             model_badges = ""

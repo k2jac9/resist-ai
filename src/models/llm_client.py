@@ -10,7 +10,9 @@ Supports multiple OpenAI-compatible providers via LLM_PROVIDER env var
 Used for target analysis, drug mechanism, safety reasoning, report generation.
 """
 from __future__ import annotations
-import json, logging, os
+import json
+import logging
+import os
 from typing import Any
 
 logger = logging.getLogger(__name__)
