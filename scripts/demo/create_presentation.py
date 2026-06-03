@@ -1,11 +1,19 @@
 """
 Generate ResistAI Hackathon Presentation
 Creates a professional PowerPoint for demo and submission
+
+Requires:  pip install -r scripts/demo/requirements-demo.txt
 """
-from pptx import Presentation
-from pptx.util import Inches, Pt
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
-from pptx.dml.color import RGBColor
+import sys
+
+try:
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+    from pptx.dml.color import RGBColor
+except ImportError:
+    print("python-pptx not installed. Run: pip install -r scripts/demo/requirements-demo.txt")
+    sys.exit(1)
 
 # Create presentation
 prs = Presentation()

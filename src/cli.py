@@ -37,7 +37,7 @@ def badge(label: str, ok: bool) -> str:
 def table(headers: list[str], rows: list[list[str]], widths: list[int] | None = None) -> str:
     """Render a simple ASCII table."""
     if not widths:
-        widths = [max(len(h), *(len(str(r[i])) for r in rows)) + 2 for i, h in enumerate(headers)]
+        widths = [max(len(h), 0, *(len(str(r[i])) for r in rows)) + 2 for i, h in enumerate(headers)]
     sep = "+" + "+".join("-" * w for w in widths) + "+"
     def _row(vals: list[str]) -> str:
         cells = [str(v).ljust(w) for v, w in zip(vals, widths)]

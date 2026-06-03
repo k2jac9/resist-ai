@@ -7,6 +7,18 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 
+def _count_residues(pdb: str) -> int:
+    """Count residues in a PDB string by counting CA atoms (one per residue)."""
+    if not pdb:
+        return 0
+    return sum(
+        1
+        for line in pdb.splitlines()
+        if (line.startswith("ATOM") or line.startswith("HETATM"))
+        and line[12:16].strip() == "CA"
+    )
+
+
 @dataclass
 class RFdiffusionResult:
     """De novo protein backbone design result."""
@@ -44,7 +56,7 @@ class RFdiffusionMixin:
             pdb = data.get("output_pdb", data.get("pdb", ""))
             return RFdiffusionResult(
                 pdb_string=pdb,
-                num_residues=pdb.count("\nATOM") if pdb else 0,
+                num_residues=_count_residues(pdb),
                 elapsed_ms=data.get("_elapsed_ms", data.get("elapsed_ms", 0)),
                 success=bool(pdb),
             )

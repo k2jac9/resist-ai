@@ -1,10 +1,19 @@
 """
 Automated Screenshot Capture for Demo Video
 Takes screenshots of the Gradio UI at key moments
+
+Requires:  pip install -r scripts/demo/requirements-demo.txt
 """
+import sys
+
+try:
+    import pyautogui
+except ImportError:
+    print("pyautogui not installed. Run: pip install -r scripts/demo/requirements-demo.txt")
+    sys.exit(1)
+
 import time
 from pathlib import Path
-import pyautogui
 from datetime import datetime
 
 # Create output directory
