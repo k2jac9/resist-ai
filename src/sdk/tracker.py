@@ -9,6 +9,7 @@ import csv
 import json
 import os
 import sqlite3
+import threading
 import time
 import uuid
 from contextlib import contextmanager
@@ -64,6 +65,10 @@ class ExperimentTracker:
     def __init__(self, db_path: str = _DEFAULT_DB) -> None:
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self._db_path = db_path
+        # check_same_thread=False allows cross-thread use (e.g. parallel batch
+        # runs); the connection is not thread-safe on its own, so every access
+        # is serialised through this lock.
+        self._lock = threading.RLock()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
@@ -72,11 +77,12 @@ class ExperimentTracker:
         self, name: str, pathogen: str = "", metadata: dict | None = None
     ) -> str:
         eid = uuid.uuid4().hex[:12]
-        self._conn.execute(
-            "INSERT INTO experiments (id, name, pathogen, metadata, created_at) VALUES (?,?,?,?,?)",
-            (eid, name, pathogen, json.dumps(metadata or {}), time.time()),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO experiments (id, name, pathogen, metadata, created_at) VALUES (?,?,?,?,?)",
+                (eid, name, pathogen, json.dumps(metadata or {}), time.time()),
+            )
+            self._conn.commit()
         return eid
 
     def log_prediction(
@@ -89,11 +95,12 @@ class ExperimentTracker:
         elapsed_ms: float = 0.0,
         input_type: str = "",
     ) -> None:
-        self._conn.execute(
-            "INSERT INTO predictions (experiment_id, model, input_type, input_data, output_data, score, elapsed_ms, created_at) VALUES (?,?,?,?,?,?,?,?)",
-            (experiment_id, model, input_type, json.dumps(input_data), json.dumps(output_data), score, elapsed_ms, time.time()),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO predictions (experiment_id, model, input_type, input_data, output_data, score, elapsed_ms, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                (experiment_id, model, input_type, json.dumps(input_data), json.dumps(output_data), score, elapsed_ms, time.time()),
+            )
+            self._conn.commit()
 
     def log_molecule(
         self,
@@ -106,11 +113,12 @@ class ExperimentTracker:
         parent_smiles: str = "",
         generation: int = 0,
     ) -> None:
-        self._conn.execute(
-            "INSERT INTO molecules (experiment_id, smiles, source, qed_score, binding_score, lipinski_pass, parent_smiles, generation, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            (experiment_id, smiles, source, qed_score, binding_score, int(lipinski_pass), parent_smiles, generation, time.time()),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO molecules (experiment_id, smiles, source, qed_score, binding_score, lipinski_pass, parent_smiles, generation, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                (experiment_id, smiles, source, qed_score, binding_score, int(lipinski_pass), parent_smiles, generation, time.time()),
+            )
+            self._conn.commit()
 
     def end_experiment(
         self,
@@ -119,33 +127,36 @@ class ExperimentTracker:
         duration_ms: float = 0.0,
         models_used: list[str] | None = None,
     ) -> None:
-        self._conn.execute(
-            "UPDATE experiments SET status=?, duration_ms=?, models_used=? WHERE id=?",
-            (status, duration_ms, json.dumps(models_used or []), experiment_id),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "UPDATE experiments SET status=?, duration_ms=?, models_used=? WHERE id=?",
+                (status, duration_ms, json.dumps(models_used or []), experiment_id),
+            )
+            self._conn.commit()
 
     def get_experiment(self, experiment_id: str) -> dict[str, Any]:
-        row = self._conn.execute("SELECT * FROM experiments WHERE id=?", (experiment_id,)).fetchone()
-        if not row:
-            return {}
-        exp = dict(row)
-        exp["models_used"] = json.loads(exp.get("models_used", "[]"))
-        exp["metadata"] = json.loads(exp.get("metadata", "{}"))
-        exp["predictions"] = [
-            {**dict(r), "input_data": json.loads(r["input_data"]), "output_data": json.loads(r["output_data"])}
-            for r in self._conn.execute("SELECT * FROM predictions WHERE experiment_id=? ORDER BY created_at", (experiment_id,))
-        ]
-        exp["molecules"] = [
-            dict(r) for r in self._conn.execute("SELECT * FROM molecules WHERE experiment_id=? ORDER BY binding_score DESC", (experiment_id,))
-        ]
-        return exp
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM experiments WHERE id=?", (experiment_id,)).fetchone()
+            if not row:
+                return {}
+            exp = dict(row)
+            exp["models_used"] = json.loads(exp.get("models_used", "[]"))
+            exp["metadata"] = json.loads(exp.get("metadata", "{}"))
+            exp["predictions"] = [
+                {**dict(r), "input_data": json.loads(r["input_data"]), "output_data": json.loads(r["output_data"])}
+                for r in self._conn.execute("SELECT * FROM predictions WHERE experiment_id=? ORDER BY created_at", (experiment_id,))
+            ]
+            exp["molecules"] = [
+                dict(r) for r in self._conn.execute("SELECT * FROM molecules WHERE experiment_id=? ORDER BY binding_score DESC", (experiment_id,))
+            ]
+            return exp
 
     def list_experiments(self, limit: int = 50) -> list[dict]:
-        rows = self._conn.execute(
-            "SELECT id, name, pathogen, status, duration_ms, models_used, created_at FROM experiments ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, name, pathogen, status, duration_ms, models_used, created_at FROM experiments ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
         results = []
         for r in rows:
             d = dict(r)
@@ -154,14 +165,15 @@ class ExperimentTracker:
         return results
 
     def get_stats(self) -> dict[str, Any]:
-        exp_count = self._conn.execute("SELECT COUNT(*) FROM experiments").fetchone()[0]
-        pred_count = self._conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
-        mol_count = self._conn.execute("SELECT COUNT(*) FROM molecules").fetchone()[0]
-        avg_binding = self._conn.execute("SELECT AVG(binding_score) FROM molecules WHERE binding_score > 0").fetchone()[0] or 0
-        avg_qed = self._conn.execute("SELECT AVG(qed_score) FROM molecules WHERE qed_score > 0").fetchone()[0] or 0
-        top_models = self._conn.execute(
-            "SELECT model, COUNT(*) as cnt FROM predictions GROUP BY model ORDER BY cnt DESC LIMIT 5"
-        ).fetchall()
+        with self._lock:
+            exp_count = self._conn.execute("SELECT COUNT(*) FROM experiments").fetchone()[0]
+            pred_count = self._conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
+            mol_count = self._conn.execute("SELECT COUNT(*) FROM molecules").fetchone()[0]
+            avg_binding = self._conn.execute("SELECT AVG(binding_score) FROM molecules WHERE binding_score > 0").fetchone()[0] or 0
+            avg_qed = self._conn.execute("SELECT AVG(qed_score) FROM molecules WHERE qed_score > 0").fetchone()[0] or 0
+            top_models = self._conn.execute(
+                "SELECT model, COUNT(*) as cnt FROM predictions GROUP BY model ORDER BY cnt DESC LIMIT 5"
+            ).fetchall()
         return {
             "total_experiments": exp_count,
             "total_predictions": pred_count,
@@ -172,12 +184,13 @@ class ExperimentTracker:
         }
 
     def export_molecules_csv(self, output_path: str) -> int:
-        rows = self._conn.execute(
-            "SELECT m.smiles, m.source, m.qed_score, m.binding_score, m.lipinski_pass, "
-            "m.parent_smiles, m.generation, e.pathogen, e.name as experiment "
-            "FROM molecules m JOIN experiments e ON m.experiment_id = e.id "
-            "ORDER BY m.binding_score DESC"
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT m.smiles, m.source, m.qed_score, m.binding_score, m.lipinski_pass, "
+                "m.parent_smiles, m.generation, e.pathogen, e.name as experiment "
+                "FROM molecules m JOIN experiments e ON m.experiment_id = e.id "
+                "ORDER BY m.binding_score DESC"
+            ).fetchall()
         with open(output_path, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(["smiles", "source", "qed_score", "binding_score", "lipinski_pass", "parent_smiles", "generation", "pathogen", "experiment"])
