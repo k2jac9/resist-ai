@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from ..models.schemas import (
@@ -373,7 +374,7 @@ USP's Pharmaceutical Development & Innovation team.
     else:
         doc += "_Model explanations will be added from pipeline results._\n\n"
 
-    doc += """
+    doc += f"""
 ---
 
 ## Recommended Next Steps
@@ -403,7 +404,7 @@ USP's Pharmaceutical Development & Innovation team.
 
 ---
 
-**Document Generated:** {report.pathway.timeline_years}
+**Document Generated:** {date.today().isoformat()}
 **ResistAI Platform:** AI-Orchestrated Drug Discovery for AMR
 """
 

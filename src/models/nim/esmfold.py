@@ -50,7 +50,11 @@ class ESMFoldMixin:
 
             try:
                 data = resp.json()
-                pdb = data.get("pdbs", [data.get("pdb_string", "")])[0] if isinstance(data, dict) else ""
+                if isinstance(data, dict):
+                    pdbs = data.get("pdbs") or []
+                    pdb = pdbs[0] if pdbs else data.get("pdb_string", "")
+                else:
+                    pdb = ""
             except (json.JSONDecodeError, ValueError):
                 pdb = resp.text
 
