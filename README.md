@@ -16,7 +16,6 @@
 [![Models](https://img.shields.io/badge/AI%20models-9-green)]()
 [![NVIDIA NIM](https://img.shields.io/badge/NVIDIA-NIM%20Biology-76b900)]()
 [![Nebius AI](https://img.shields.io/badge/Nebius-AI%20Studio-blueviolet)]()
-[![License: MIT](https://img.shields.io/badge/license-MIT-yellow)]()
 
 [Quick Start](#quick-start) | [Pipeline](#pipeline-architecture) | [Results](#key-results) | [SDK](#sdk-usage) | [API Docs](#quick-start)
 
@@ -389,5 +388,7 @@ The pipeline generates structured output compatible with IND (Investigational Ne
 **ResistAI** -- Because the post-antibiotic era should not be our future.
 
 *Built at Evolved 25, Toronto 2026*
+
+Copyright (c) 2026 Team BioHack. All rights reserved. License terms to be determined.
 
 </div>
