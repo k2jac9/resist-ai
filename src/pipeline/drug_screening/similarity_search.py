@@ -9,12 +9,9 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+from src.utils.chemistry import RDKIT_AVAILABLE
 
-from src.utils.chemistry import (
-    RDKIT_AVAILABLE,
-    tanimoto_similarity,
-)
+logger = logging.getLogger(__name__)
 
 try:
     from rdkit import Chem, DataStructs
