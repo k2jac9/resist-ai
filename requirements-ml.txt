@@ -4,5 +4,5 @@
 # Without these, src/pipeline/target_discovery/esm2_client.py falls back to
 # a deterministic sequence-property heuristic.
 
-torch==2.12.0
-transformers==5.9.0
+torch==2.12.1
+transformers==5.12.1
