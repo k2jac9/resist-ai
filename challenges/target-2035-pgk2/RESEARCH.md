@@ -210,7 +210,79 @@ confirmed hits**. **[reported]**
 
 ---
 
-## 9. How this maps onto ResistAI (reuse vs gaps)
+## 9. Free & frontier models you can use (NVIDIA + open)
+
+> The challenge is computational and budget-light, so a **fully-free** model stack is
+> realistic. Much of the NVIDIA half is **already wired into ResistAI** via NVIDIA NIM.
+> **Practical constraint [inference]:** NIM free credits are limited (≈1k–5k calls), so
+> use **self-hostable open weights** for the high-volume **890M-row DEL ranking**, and
+> spend NIM credits only on **low-volume** structure/docking re-scoring and generation
+> of your top candidates.
+
+### 9.1 NVIDIA BioNeMo / NIM — free tier
+**Access [reported]:** sign up to the **NVIDIA Developer Program** at **build.nvidia.com**,
+open any model, *Get API Key* → an `nvapi-` key with **~1,000 inference credits**
+(up to **5,000** on request) and a **~40 req/min** limit. Separately, BioNeMo models are
+**fully open-source** (weights + code, `NVIDIA/bionemo-framework` and the
+`NVIDIA-Digital-Bio` GitHub org) so you can **self-host for free**. **[verified]**
+
+| NIM model | Relevance to the PGK2 challenge | In ResistAI? |
+|-----------|----------------------------------|--------------|
+| **Boltz-2** | Structure **+ binding-affinity** prediction → core **PGK2-vs-PGK1 selectivity** scoring | ✅ yes |
+| **OpenFold3 / OpenFold2** | 3D structure prediction (build PGK2/PGK1 models where PDB gaps exist) | — (ESMFold ✅) |
+| **DiffDock** | Blind **docking** of candidates into PGK2 vs PGK1 pockets | ✅ yes |
+| **MolMIM** | Small-molecule **generative + latent embedding** (CMA-ES optimization) for Phase-2 novel hits | ✅ yes |
+| **GenMol** | **Masked-diffusion, fragment-based** generation (SAFE) → scaffold-hop to **novel series** | — (add) |
+| **ProteinMPNN / RFdiffusion** | Protein design (peripheral here) | ✅ yes |
+| **Evo2-40B** | Genomic foundation model (not central to small-molecule binding) | ✅ yes |
+
+All of the above are **verified** as present in the BioNeMo/NIM catalog. The upshot:
+ResistAI's NVIDIA integration is **mostly plug-in** for the structure/generation half;
+the main new add worth wiring is **GenMol** (fragment-based novel-series generation).
+
+### 9.2 Open chemical/protein foundation models (free weights) — for DEL/ASMS ranking
+These are the workhorses for the **890M DEL → 400K ASMS** ranking model (featurize, then
+fine-tune a lightweight head). All have **open weights** you can self-host:
+
+- **MoLFormer / MoLFormer-XL** (IBM) — transformer pretrained on **~1.1B SMILES**; strong
+  molecular embeddings for property/binding ranking (`ibm/MoLFormer-XL-both-10pct`). **[verified]**
+- **ChemBERTa-2 / ChemBERTa-3** (DeepChem) — open SMILES language models **and** a
+  standardized training/benchmark framework (2025). **[verified]**
+- **Uni-Mol2** (DeepModeling) — **3D** molecular representation FM, weights released from
+  **84M → 1.1B** params. **[verified]**
+- **ESM-2** (Meta, `facebook/esm2_t33_650M_UR50D`) — protein embeddings of the **PGK2 /
+  PGK1 sequences** to build selectivity features. **[verified]** (ResistAI already uses ESM-2 650M.)
+
+### 9.3 DEL-specific methods (open code / papers)
+- **DEL-Ranking** (arXiv 2410.14946) — a **ranking-correction denoising** framework for
+  DEL affinities; directly targets the noisy-label problem in step 2 of the blueprint. **[verified]**
+- **"Enabling Open ML of DEL Selections"** (J. Med. Chem. 2025) — an **open DEL-ML
+  framework + public DEL datasets** to prototype the pipeline before the real data drops. **[verified]**
+- **"Widespread false negatives in DEL data: linker effects"** (Chem. Sci. 2025,
+  `D5SC00844A`) — essential caveat: DEL labels have systematic **false negatives**. **[verified]**
+- **AIRCHECK** — the **ML-ready platform** the challenge's DEL data is released through. **[verified]**
+
+### 9.4 Free LLMs for agentic / reasoning glue (optional)
+NVIDIA NIM also hosts **open frontier LLMs free** (e.g. **Llama-3.x**, **Nemotron**) for
+agent orchestration / literature reasoning. ResistAI's **multi-provider `llm_client`**
+(defaults to local **Ollama**) can point at these endpoints, so no paid LLM is required. **[reported / inference]**
+
+### 9.5 A fully-free reference stack [inference]
+1. **Featurize** SMILES with **MoLFormer / Uni-Mol2 + ECFP** (self-hosted, free).
+2. **Train a denoising ranker** (DEL-Ranking-style) on the **890M DEL** — local/cluster GPU.
+3. **Rank** the **400K ASMS** set; keep diverse top candidates.
+4. **Selectivity re-score** the shortlist with **Boltz-2 + DiffDock** against **PGK2
+   (2P9Q/2PAA) vs PGK1**, scoring engagement of **Tyr242-OH / the Ala255 cavity** — low
+   call volume, fits NIM free credits.
+5. **Cluster** (Butina/Tanimoto) and **submit diverse representatives**.
+6. **Phase 2:** generate novel **Enamine-available** series with **MolMIM + GenMol**.
+
+> Net: essentially **$0 in model costs** — open weights for the heavy DEL ranking, NIM
+> free credits for the low-volume structure/generation steps.
+
+---
+
+## 10. How this maps onto ResistAI (reuse vs gaps)
 
 ResistAI is an **antimicrobial-resistance** pipeline (NDM-1 / ESKAPE) — a **different
 domain** — but parts transfer to a future real entry:
@@ -234,7 +306,7 @@ domain** — but parts transfer to a future real entry:
 
 ---
 
-## 10. Open questions to confirm on Synapse
+## 11. Open questions to confirm on Synapse
 
 - [ ] Does the **quinazoline exclusion** (from CACHE #7) apply to the DEL-ML challenge?
 - [ ] Exact **submission format** (ID scheme, score/rank columns, # of predictions).
@@ -257,4 +329,18 @@ domain** — but parts transfer to a future real entry:
 - [X-ray analysis of mouse PGK2 (open form; 13° closure on 3PG) — PubMed](https://pubmed.ncbi.nlm.nih.gov/18004764/)
 - [Mouse PGK2 crystal structures — RCSB PDB: 2P9Q (apo)](https://www.rcsb.org/structure/2P9Q) · [2P9T (+3PG)](https://www.rcsb.org/structure/2P9T) · [2PAA (+ATP+3PG)](https://www.rcsb.org/structure/2PAA)
 - [Pharos: PGK2 target page (Tbio classification)](https://pharos.nih.gov/targets/PGK2)
+
+**Models & tooling (Section 9):**
+- [NVIDIA NIM biology model catalog (Boltz-2, GenMol, DiffDock, MolMIM, OpenFold, Evo2…)](https://build.nvidia.com/explore/biology)
+- [NVIDIA NIM for Boltz-2 — structure + binding-affinity docs](https://docs.nvidia.com/nim/bionemo/boltz2/latest/index.html)
+- [NVIDIA NIM for GenMol — fragment-based generation (SAFE) docs](https://docs.nvidia.com/nim/bionemo/genmol/latest/overview.html)
+- [BioNeMo Framework — open-source models & weights](https://github.com/NVIDIA/bionemo-framework)
+- [NVIDIA NIM free API: credits & rate limits (secondary)](https://decodethefuture.org/en/nvidia-nim-api-explained/)
+- [IBM MoLFormer-XL — open SMILES foundation model (Hugging Face)](https://huggingface.co/ibm/MoLFormer-XL-both-10pct)
+- [ChemBERTa-3 — open chemical foundation model training framework (GitHub)](https://github.com/deepforestsci/chemberta3)
+- [Uni-Mol — 3D molecular representation models (GitHub)](https://github.com/deepmodeling/Uni-Mol)
+- [ESM-2 protein language model (Hugging Face)](https://huggingface.co/facebook/esm2_t33_650M_UR50D)
+- [DEL-Ranking: ranking-correction denoising for DEL affinities (arXiv 2410.14946)](https://arxiv.org/pdf/2410.14946)
+- [Enabling Open ML of DEL Selections (J. Med. Chem. 2025)](https://pubs.acs.org/doi/10.1021/acs.jmedchem.5c01972)
+- [Widespread false negatives in DEL data: linker effects (Chem. Sci. 2025)](https://pubs.rsc.org/en/content/articlehtml/2025/sc/d5sc00844a)
 - Synapse challenge project (login required): `https://www.synapse.org/Synapse:syn75349604`

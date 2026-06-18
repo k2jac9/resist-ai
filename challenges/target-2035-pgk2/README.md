@@ -169,6 +169,11 @@ A real entry would still need **DEL-specific** data handling (synthon encodings,
 enrichment-count denoising) and a **large-scale ML classifier**, which ResistAI does
 not currently provide.
 
+> 💡 **Free model stack:** a fully-free toolkit (NVIDIA NIM free tier — Boltz-2,
+> DiffDock, MolMIM, GenMol — plus open-weights MoLFormer / Uni-Mol / ChemBERTa / ESM-2
+> for the DEL ranking) is detailed in [`RESEARCH.md` §9](./RESEARCH.md#9-free--frontier-models-you-can-use-nvidia--open).
+> Most of the NVIDIA half is **already integrated** in ResistAI.
+
 ---
 
 ## Fact-check log (2026-06-18)
