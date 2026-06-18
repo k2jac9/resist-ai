@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import time
-from typing import Any
 
 from ..models.schemas import DrugCandidate, PipelineResults
 
@@ -33,7 +32,7 @@ class ReportGenerator:
         mode_label = "Demo Mode" if demo else "Production"
 
         lines = [
-            f"# AMR-AI Pipeline Report",
+            "# AMR-AI Pipeline Report",
             "",
             f"**Pathogen:** {results.pathogen}  ",
             f"**Timestamp:** {meta.get('timestamp', 'N/A')}  ",

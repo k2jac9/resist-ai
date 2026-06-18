@@ -13,7 +13,6 @@ import threading
 import time
 import uuid
 from contextlib import contextmanager
-from dataclasses import dataclass
 from typing import Any, Generator
 
 _DEFAULT_DB = ".resistai/experiments.db"

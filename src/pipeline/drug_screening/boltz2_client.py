@@ -11,11 +11,12 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 import yaml
+
+from src.utils.chemistry import compute_descriptors, RDKIT_AVAILABLE
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +26,6 @@ try:
     OPENAI_SDK_AVAILABLE = True
 except ImportError:
     OPENAI_SDK_AVAILABLE = False
-
-from src.utils.chemistry import compute_descriptors, RDKIT_AVAILABLE
 
 if RDKIT_AVAILABLE:
     from rdkit import Chem
@@ -147,13 +146,6 @@ class Boltz2Client:
 
         try:
             client = OpenAI(api_key=self._api_key, base_url=self._base_url)
-
-            # Write YAML to a temp file for the files-based API
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".yaml", delete=False,
-            ) as fh:
-                fh.write(yaml_input)
-                yaml_path = fh.name
 
             response = client.chat.completions.create(
                 model=self._model,

@@ -28,7 +28,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Callable, Optional
 
 from src.sdk.results import (
     BinderDesign,

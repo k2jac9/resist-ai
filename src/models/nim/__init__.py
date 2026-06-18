@@ -39,4 +39,5 @@ __all__ = [
     "DiffDockResult",
     "RFdiffusionResult",
     "ProteinMPNNResult",
+    "_get_api_key",
 ]

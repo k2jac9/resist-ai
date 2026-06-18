@@ -8,7 +8,7 @@ from src.comparison import (
     rank_by_dimension,
     DIMENSIONS as _CMP_DIMS,
 )
-from src.ui.common import PATHOGENS, _COMPOUNDS, _mode_badge, _demo_candidates_to_display
+from src.ui.common import PATHOGENS, _COMPOUNDS, _mode_badge
 
 
 def compare_candidates_ui(pathogen_label: str, rank_dim: str = "Overall"):
