@@ -6,3 +6,6 @@
 
 pytest==9.1.0
 ruff>=0.15.17,<0.16
+# starlette.testclient (used by fastapi TestClient) prefers httpx2 over httpx;
+# installing it silences the StarletteDeprecationWarning and uses the modern client.
+httpx2==2.4.0
