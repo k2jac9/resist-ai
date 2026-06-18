@@ -381,6 +381,13 @@ The pipeline generates structured output compatible with IND (Investigational Ne
 - ADMET safety prediction and off-target analysis
 - LLM-synthesized clinical reasoning for every candidate
 
+## Related Projects
+
+- **[Selectra](https://github.com/k2jac9/selectra)** (private) — sibling project for
+  selective hit-finding ML on hard-to-distinguish targets (first application: the
+  PGK2-over-PGK1 DEL-ML challenge). Spun off from this repo's research; reuses some of
+  ResistAI's chemistry / NVIDIA NIM components.
+
 ---
 
 <div align="center">
