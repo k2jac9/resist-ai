@@ -2,16 +2,14 @@
 
 NIM and LLM clients are fully mocked so these run offline.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from src.pipeline.orchestrator import (
-    PipelineOrchestrator,
-    SafetyScorer,
-    DrugScreener,
-    TargetAnalyzer,
-)
+from src.pipeline.orchestrator import PipelineOrchestrator
+from src.pipeline.safety_stage import SafetyScorer
+from src.pipeline.screening_stage import DrugScreener
+from src.pipeline.target_stage import TargetAnalyzer
 from src.models.schemas import ScreeningHit, TargetResult
 
 
@@ -49,11 +47,6 @@ def hit():
 def _make_orchestrator(nim=None, llm=None):
     """Return a PipelineOrchestrator with NIM/LLM mocked away."""
     orch = PipelineOrchestrator()
-    # Patch module-level lazy singletons used inside orchestrator
-    if nim:
-        patch("src.pipeline.orchestrator._nim", nim).start()
-    if llm:
-        patch("src.pipeline.orchestrator._llm", llm).start()
     return orch
 
 
@@ -64,28 +57,28 @@ def _make_orchestrator(nim=None, llm=None):
 class TestTargetAnalyzer:
     def test_discover_targets_returns_list(self):
         analyzer = TargetAnalyzer()
-        with patch("src.pipeline.orchestrator._get_nim", return_value=None):
+        with patch("src.pipeline.clients.get_nim", return_value=None):
             targets = analyzer.discover_targets("Klebsiella pneumoniae", use_nim=False)
         assert isinstance(targets, list)
         assert len(targets) > 0
 
     def test_targets_have_druggability_scores(self):
         analyzer = TargetAnalyzer()
-        with patch("src.pipeline.orchestrator._get_nim", return_value=None):
+        with patch("src.pipeline.clients.get_nim", return_value=None):
             targets = analyzer.discover_targets("Klebsiella pneumoniae", use_nim=False)
         for t in targets:
             assert 0.0 <= t.druggability_score <= 1.0
 
     def test_targets_sorted_descending(self):
         analyzer = TargetAnalyzer()
-        with patch("src.pipeline.orchestrator._get_nim", return_value=None):
+        with patch("src.pipeline.clients.get_nim", return_value=None):
             targets = analyzer.discover_targets("Klebsiella pneumoniae", use_nim=False)
         scores = [t.druggability_score for t in targets]
         assert scores == sorted(scores, reverse=True)
 
     def test_unknown_pathogen_returns_generic_targets(self):
         analyzer = TargetAnalyzer()
-        with patch("src.pipeline.orchestrator._get_nim", return_value=None):
+        with patch("src.pipeline.clients.get_nim", return_value=None):
             targets = analyzer.discover_targets("UnknownBug XYZ", use_nim=False)
         assert len(targets) > 0
 
@@ -97,21 +90,21 @@ class TestTargetAnalyzer:
 class TestDrugScreener:
     def test_screen_returns_hits(self, target):
         screener = DrugScreener()
-        with patch("src.pipeline.orchestrator._get_nim", return_value=None):
+        with patch("src.pipeline.clients.get_nim", return_value=None):
             results = screener.screen_drugs(target, max_drugs=5, use_nim=False)
         assert results.compounds_screened == 5
         assert len(results.hits) == 5
 
     def test_hits_ranked_by_affinity(self, target):
         screener = DrugScreener()
-        with patch("src.pipeline.orchestrator._get_nim", return_value=None):
+        with patch("src.pipeline.clients.get_nim", return_value=None):
             results = screener.screen_drugs(target, max_drugs=5, use_nim=False)
         affinities = [h.binding_affinity for h in results.hits]
         assert affinities == sorted(affinities, reverse=True)
 
     def test_hits_have_smiles(self, target):
         screener = DrugScreener()
-        with patch("src.pipeline.orchestrator._get_nim", return_value=None):
+        with patch("src.pipeline.clients.get_nim", return_value=None):
             results = screener.screen_drugs(target, max_drugs=3, use_nim=False)
         for h in results.hits:
             assert h.smiles
@@ -150,8 +143,8 @@ class TestSafetyScorer:
 class TestPipelineOrchestrator:
     def _run(self, pathogen="Klebsiella pneumoniae", **kwargs):
         orch = PipelineOrchestrator()
-        with patch("src.pipeline.orchestrator._get_nim", return_value=None), \
-             patch("src.pipeline.orchestrator._get_llm", return_value=None):
+        with patch("src.pipeline.clients.get_nim", return_value=None), \
+             patch("src.pipeline.clients.get_llm", return_value=None):
             return orch.run_full_pipeline(
                 pathogen_name=pathogen,
                 max_drugs=5,
@@ -174,8 +167,8 @@ class TestPipelineOrchestrator:
 
     def test_no_targets_raises(self):
         orch = PipelineOrchestrator()
-        with patch("src.pipeline.orchestrator._get_nim", return_value=None), \
-             patch("src.pipeline.orchestrator._get_llm", return_value=None), \
+        with patch("src.pipeline.clients.get_nim", return_value=None), \
+             patch("src.pipeline.clients.get_llm", return_value=None), \
              patch.object(orch._target_analyzer, "discover_targets", return_value=[]), \
              pytest.raises(ValueError, match="No targets found"):
             orch.run_full_pipeline(
@@ -191,8 +184,8 @@ class TestPipelineOrchestrator:
             events.append(stage)
 
         orch = PipelineOrchestrator(progress_callback=cb)
-        with patch("src.pipeline.orchestrator._get_nim", return_value=None), \
-             patch("src.pipeline.orchestrator._get_llm", return_value=None):
+        with patch("src.pipeline.clients.get_nim", return_value=None), \
+             patch("src.pipeline.clients.get_llm", return_value=None):
             orch.run_full_pipeline("Klebsiella pneumoniae", max_drugs=3, generate_novel=False)
 
         assert "targets" in events
