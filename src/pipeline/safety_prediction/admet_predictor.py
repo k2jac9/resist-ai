@@ -102,7 +102,6 @@ def _heuristic_absorption(desc: dict) -> dict:
     tpsa = desc["tpsa"]
     mw = desc["mw"]
     hbd = desc["hbd"]
-    hba = desc["hba"]
 
     caco2 = round(-5.5 + 0.3 * logp - 0.01 * tpsa, 3)
     hua = round(max(0, min(100, 95 - 0.5 * (tpsa - 75) - 2 * max(0, hbd - 3))), 1)
@@ -163,7 +162,6 @@ def _heuristic_toxicity(desc: dict) -> dict:
     """Predict toxicity endpoints from descriptors."""
     logp = desc["logp"]
     mw = desc["mw"]
-    tpsa = desc["tpsa"]
     tc = desc["toxicophore_count"]
 
     herg = round(min(1, 0.05 + 0.1 * max(0, logp - 3) + 0.02 * tc), 3)

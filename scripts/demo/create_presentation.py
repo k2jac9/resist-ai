@@ -9,7 +9,7 @@ import sys
 try:
     from pptx import Presentation
     from pptx.util import Inches, Pt
-    from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+    from pptx.enum.text import PP_ALIGN
     from pptx.dml.color import RGBColor
 except ImportError:
     print("python-pptx not installed. Run: pip install -r scripts/demo/requirements-demo.txt")
@@ -497,4 +497,4 @@ output_file = "ResistAI_Presentation.pptx"
 prs.save(output_file)
 print(f"Presentation created: {output_file}")
 print(f"   - {len(prs.slides)} slides")
-print(f"   - Ready for demo and video export")
+print("   - Ready for demo and video export")

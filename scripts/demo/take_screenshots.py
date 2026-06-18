@@ -12,7 +12,6 @@ except ImportError:
     print("pyautogui not installed. Run: pip install -r scripts/demo/requirements-demo.txt")
     sys.exit(1)
 
-import time
 from pathlib import Path
 from datetime import datetime
 
@@ -113,7 +112,7 @@ print("\n📸 Screenshot 12: API Documentation (Bonus)")
 wait_for_user("Open http://localhost:8000/docs in a new tab (or skip with ENTER)")
 try:
     take_screenshot("12_api_docs", "OpenAPI documentation")
-except:
+except Exception:
     print("  Skipped")
 
 print(f"""

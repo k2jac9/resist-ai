@@ -6,6 +6,24 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ruff
+        # Single source of truth for the pin lives in requirements-dev.txt.
+        run: pip install "$(grep -E '^ruff' requirements-dev.txt)"
+
+      - name: Ruff lint
+        run: ruff check src/ tests/ scripts/
+
   test:
     runs-on: ubuntu-latest
     steps:

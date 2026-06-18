@@ -2,7 +2,7 @@
 
 NIM and LLM clients are fully mocked so these run offline.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

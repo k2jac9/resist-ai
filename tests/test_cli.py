@@ -1,9 +1,6 @@
 """Tests for CLI helper utilities (color, table, badge) -- no subprocess needed."""
 import os
-import sys
-from io import StringIO
 
-import pytest
 
 
 # Force NO_COLOR so ANSI codes are stripped in test output.
@@ -12,13 +9,8 @@ os.environ["NO_COLOR"] = "1"
 
 from src.cli import (
     bold,
-    dim,
     red,
     green,
-    yellow,
-    blue,
-    cyan,
-    mag,
     badge,
     table,
     _load_env,

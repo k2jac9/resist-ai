@@ -14,7 +14,7 @@ from src.comparison import DIMENSIONS as _CMP_DIMS
 
 
 def create_app() -> gr.Blocks:
-    app = gr.Blocks(title="ResistAI: AI Drug Discovery")
+    app = gr.Blocks(title="ResistAI: AI Drug Discovery", css=_CSS)
     with app:
         gr.HTML(
             "<div class='evolved-banner'>"

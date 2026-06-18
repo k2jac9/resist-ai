@@ -18,7 +18,6 @@ except ImportError:
     print("  playwright install chromium")
     sys.exit(1)
 
-import subprocess
 import time
 from pathlib import Path
 
@@ -276,7 +275,7 @@ Press ENTER to continue or CTRL+C to cancel...
         video_files = list(OUTPUT_DIR.glob("*.webm"))
         if video_files:
             print(f"\n🎥 Video file: {video_files[0].name}")
-            print(f"\n💡 Convert to MP4 with:")
+            print("\n💡 Convert to MP4 with:")
             print(f"   ffmpeg -i {video_files[0].name} -c:v libx264 -c:a aac ResistAI_Demo.mp4")
 
         print("\n" + "="*60)

@@ -14,7 +14,6 @@ def generate_report(label: str, max_n: int, demo: bool) -> tuple[str, str]:
     n = min(max_n, len(_COMPOUNDS))
     targets = get_demo_targets(info["key"])
     candidates = _demo_candidates_to_display(info["key"], n)
-    top = candidates[0] if candidates else {}
 
     rows = "\n".join(
         f"| {c['Rank']} | {c['💊 Drug']} | {c['Binding']} | {c['Safety']} | {c['Overall']} |"

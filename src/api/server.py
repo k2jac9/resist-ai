@@ -214,7 +214,7 @@ def run_pipeline(req: PipelineRequest, _key: str = Security(verify_api_key)):
         return APIResponse(success=True, data=result.to_dict(), elapsed_ms=round(elapsed, 1))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("Pipeline failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -228,7 +228,7 @@ def predict_binding(req: BindingRequest, _key: str = Security(verify_api_key)):
     try:
         result, elapsed = _timed(nim.predict_binding, req.protein_sequence, req.ligand_smiles)
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
-    except Exception as exc:
+    except Exception:
         logger.exception("Binding prediction failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -242,7 +242,7 @@ def predict_structure(req: StructureRequest, _key: str = Security(verify_api_key
     try:
         result, elapsed = _timed(nim.fold_protein, req.sequence)
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
-    except Exception as exc:
+    except Exception:
         logger.exception("Structure prediction failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -261,7 +261,7 @@ def generate_molecules(req: GenerateRequest, _key: str = Security(verify_api_key
             property_name=req.optimize,
         )
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
-    except Exception as exc:
+    except Exception:
         logger.exception("Molecule generation failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -275,7 +275,7 @@ def generate_dna(req: DNAGenerateRequest, _key: str = Security(verify_api_key)):
     try:
         result, elapsed = _timed(nim.generate_dna, req.sequence, req.num_tokens)
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
-    except Exception as exc:
+    except Exception:
         logger.exception("DNA generation failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -294,7 +294,7 @@ def dock_molecule(req: DockRequest, _key: str = Security(verify_api_key)):
             num_poses=req.num_poses,
         )
         return APIResponse(success=result.success, data=_result_to_dict(result), elapsed_ms=round(elapsed, 1))
-    except Exception as exc:
+    except Exception:
         logger.exception("Docking failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -337,7 +337,7 @@ def design_binder(req: BinderRequest, _key: str = Security(verify_api_key)):
         return APIResponse(success=sequences.success, data=data, elapsed_ms=round(elapsed, 1))
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
         logger.exception("Binder design failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -360,7 +360,7 @@ def health_check():
             data={"nim_available": True, "endpoints": result},
             elapsed_ms=round(elapsed, 1),
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("Health check failed")
         return APIResponse(success=False, error="Health check failed")
 
