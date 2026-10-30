@@ -1,401 +1,86 @@
-<div align="center">
+# ResistAI
 
-```
- ____           _     _      _    ___
-|  _ \ ___  ___(_)___| |_   / \  |_ _|
-| |_) / _ \/ __| / __| __| / _ \  | |
-|  _ <  __/\__ \ \__ \ |_ / ___ \ | |
-|_| \_\___||___/_|___/\__/_/   \_\___|
-```
+Research evidence tooling for antimicrobial-resistance research.
 
-### AI-Orchestrated Drug Discovery for Antimicrobial Resistance
+**Research prototype, not a validated drug-discovery or clinical system.** This branch repairs evidence presentation and adds a bounded NVIDIA Nemotron review path through Nebius Token Factory. It does not establish biological activity, patient safety, regulatory eligibility, or a completed hackathon submission.
 
-**9 AI models. One automated pipeline. Zero approved inhibitors for NDM-1 -- until now.**
+## Start with the Evidence Review tab
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)]()
-[![Models](https://img.shields.io/badge/AI%20models-9-green)]()
-[![NVIDIA NIM](https://img.shields.io/badge/NVIDIA-NIM%20Biology-76b900)]()
-[![Nebius AI](https://img.shields.io/badge/Nebius-AI%20Studio-blueviolet)]()
+Supply a molecular SMILES string. ResistAI computes actual RDKit molecular descriptors, records the canonical input fingerprint and software version, and optionally requests Nemotron commentary about the evidence and its limitations. The default `CCO` is a software test input, not a proposed AMR treatment.
 
-[Quick Start](#quick-start) | [Pipeline](#pipeline-architecture) | [Results](#key-results) | [SDK](#sdk-usage) | [API Docs](#quick-start)
+Offline calculation makes no provider request. Model review requires explicit opt-in and server-side credentials. A successful response records requested and returned model IDs, response ID when provided, endpoint, elapsed time, reported token usage, and input/output hashes. These are application observations, not independently signed attestations. Generated commentary remains unreviewed, even after its JSON shape and allowed evidence ID pass validation.
 
-</div>
+The Co-folding Response tab displays returned Boltz-2 structural confidence metrics without converting them into binding affinity or clinical probabilities. The Descriptors tab calculates properties rather than fabricating a safety score. Legacy orchestration remains accessible, but its output is prominently marked **unverified**. Explicit simulations stay labeled simulated; UI execution failures do not silently turn into fixture results.
 
-![alt text](ResistAI-1.png)
+## Setup
 
----
-## The Problem
-
-Antimicrobial resistance (AMR) is an accelerating global health crisis.
-
-| Stat | Value |
-|------|-------|
-| Deaths directly caused by AMR annually | **1.27 million** |
-| Deaths associated with AMR annually | **4.95 million** |
-| New antibiotic classes discovered since 1987 | **0** |
-| Large pharma companies still in antibiotic R&D | **4 of 20** |
-| WHO-designated "Critical Priority" pathogens | **ESKAPE group** |
-
-The economics are brutal: antibiotics cure patients in days (low revenue), resistance evolves in months (short product life), and clinical trials cost >$1B. Pharma has fled the space. The pipeline is empty. People are dying from infections we solved 80 years ago.
-
-**NDM-1 metallo-beta-lactamase** -- a resistance enzyme spreading globally across Gram-negative bacteria -- has **no approved inhibitor**. It neutralizes carbapenems, our antibiotics of last resort.
-
----
-
-## Our Solution
-
-ResistAI chains **9 frontier AI models** into a fully automated drug discovery pipeline that runs in minutes, not years. One click takes you from a pathogen name to ranked, safety-scored drug candidates with AI-generated clinical reasoning.
-
-**Two parallel discovery paradigms:**
-
-1. **Small-molecule repurposing** -- screen existing drugs and generate novel analogs against resistance targets
-2. **De novo protein binder design** -- computationally design entirely new protein therapeutics
-
-Both paradigms run through the same orchestrated pipeline, accessible via a **Gradio web UI**, **REST API**, **CLI**, or **Python SDK**.
-
----
-
-## Pipeline Architecture
-
-```
-                         ResistAI Pipeline
- ============================================================
-
- STAGE 1: TARGET DISCOVERY
- -------------------------
-   Pathogen       Evo2-40b          ESMFold
-   Selection  --> (genomic       --> (3D structure
-   (ESKAPE)       analysis)          prediction)
-                      |                   |
-                      v                   v
-               resistance gene      folded protein
-               identification       structure (PDB)
-
- STAGE 2: DRUG SCREENING + GENERATION
- -------------------------------------
-   Known Drug       Boltz-2            MolMIM
-   Library      --> (binding        --> (novel molecule
-   (FDA/clinical)   prediction,        generation,
-                    confidence)        QED scoring)
-                        |                   |
-                        v                   v
-                  ranked hits          novel analogs
-                  + docking scores     optimized for
-                                       drug-likeness
-
- STAGE 3: PROTEIN BINDER DESIGN (de novo)
- -----------------------------------------
-   Target          RFdiffusion        ProteinMPNN
-   Structure   --> (backbone       --> (sequence
-                   generation)         design)
-                        |                   |
-                        v                   v
-                  novel protein        amino acid
-                  scaffold             sequences for
-                  (363 residues)       synthesis
-
- STAGE 4: SAFETY + REASONING
- ----------------------------
-   Candidates      ADMET              Qwen3-235B /
-               --> (toxicity,      --> DeepSeek-R1
-                   absorption,        (clinical
-                   metabolism)         reasoning,
-                        |              synthesis)
-                        v                   |
-                  safety scores             v
-                  + off-target        final ranked
-                  risk flags          report with
-                                      rationale
-```
-
----
-
-## Models Used
-
-| # | Model | Task | Provider | Endpoint |
-|---|-------|------|----------|----------|
-| 1 | **Evo2-40b** | Genomic analysis, resistance gene detection | NVIDIA NIM | `nvidia/evo2-40b` |
-| 2 | **ESMFold** | Protein structure prediction (single-sequence) | NVIDIA NIM | `nvidia/esmfold` |
-| 3 | **Boltz-2** | Biomolecular binding & docking prediction | NVIDIA NIM | `nvidia/boltz-2` |
-| 4 | **DiffDock** | Molecular docking pose generation | NVIDIA NIM | `nvidia/diffdock` |
-| 5 | **MolMIM** | Novel molecule generation & optimization | NVIDIA NIM | `nvidia/molmim` |
-| 6 | **RFdiffusion** | De novo protein backbone design | NVIDIA NIM | `nvidia/rfdiffusion` |
-| 7 | **ProteinMPNN** | Protein sequence design from backbone | NVIDIA NIM | `nvidia/proteinmpnn` |
-| 8 | **Qwen3-235B-A22B** | Clinical reasoning & report synthesis | Nebius AI | `Qwen/Qwen3-235B-A22B-Instruct-2507` |
-| 9 | **DeepSeek-R1** | Deep chain-of-thought analysis | Nebius AI | `deepseek-ai/DeepSeek-R1-0528` |
-
----
-
-## Key Results
-
-Real outputs from live API calls during the hackathon:
-
-### Binding Prediction (Boltz-2)
-
-| Drug | Target | Confidence | Status |
-|------|--------|------------|--------|
-| Sulbactam-Durlobactam | NDM-1 | **0.913** | FDA-approved (2023) for A. baumannii |
-| Cefiderocol | NDM-1 | **0.887** | Siderophore cephalosporin |
-| Meropenem-Vaborbactam | KPC-2 | **0.901** | Carbapenem + boronic acid inhibitor |
-
-### Novel Molecule Generation (MolMIM)
-
-| Metric | Value |
-|--------|-------|
-| Molecules generated per run | 10-50 |
-| QED (drug-likeness) range | **0.82 -- 0.93** |
-| Tanimoto similarity to parent | 0.4 -- 0.7 |
-| Novel scaffolds produced | Yes |
-
-### De Novo Protein Design (RFdiffusion + ProteinMPNN)
-
-| Metric | Value |
-|--------|-------|
-| Backbone residues designed | **363** |
-| Sequence recovery (ProteinMPNN) | ~42% |
-| Designable topology | Yes |
-
-### Pathogens Supported
-
-| Pathogen | WHO Priority | Key Target |
-|----------|-------------|------------|
-| *Klebsiella pneumoniae* | Critical | NDM-1, KPC-2 |
-| *Acinetobacter baumannii* | Critical | OXA-23, OXA-51 |
-| *Pseudomonas aeruginosa* | Critical | VIM-2, MexAB-OprM |
-| *Enterobacter cloacae* | Critical | AmpC, NDM-1 |
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.10+
-- NVIDIA NIM API key ([build.nvidia.com](https://build.nvidia.com))
-- Nebius AI API key ([studio.nebius.com](https://studio.nebius.com))
-
-### Install
+The existing CI and Docker runtime use Python 3.11. Keep the repository's pinned requirements; the local execution note documents a different available test environment and does not replace full CI qualification.
 
 ```bash
-git clone https://github.com/your-org/resist-ai.git
+git clone https://github.com/k2jac9/resist-ai.git
 cd resist-ai
-pip install -r requirements.txt
-
-# Optional: local ESM-2 druggability scoring (~2GB, falls back to a
-# sequence heuristic if not installed)
-pip install -r requirements-ml.txt
-```
-
-### Configure
-
-```bash
+git checkout fix/nebius-evidence-integrity-20261030
+python3.11 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-dev.txt
 cp .env.example .env
-# Edit .env with your API keys:
-#   NVIDIA_API_KEY=nvapi-...
-#   NEBIUS_API_KEY=...
-```
-
-### Run the Web UI
-
-```bash
+python -m pytest -q
 python -m src.app
-# Opens at http://localhost:7860
 ```
 
-### Run the REST API
+The repository currently requires access. No open-source license or public-release authorization is conferred by this change. Without provider keys, the descriptor workflow works locally and provider-backed operations report unavailable.
+
+### Nebius configuration
+
+Set these in the process environment or root `.env`, never in source control or a browser bundle:
+
+```dotenv
+NEBIUS_API_KEY=
+NEBIUS_BASE_URL=https://api.tokenfactory.us-central1.nebius.com/v1
+NEBIUS_MODEL=nvidia/nemotron-3-super-120b-a12b
+```
+
+The endpoint/model pair follows the [Nebius Nemotron cookbook](https://github.com/nebius/token-factory-cookbook/blob/main/models/nemotron/nemotron3-super-120B.md). Actual account availability and successful inference must be verified separately. Changing `NEBIUS_MODEL` does not establish hackathon eligibility; check the returned model and relevant model license.
+
+Run the same bounded review path from the command line:
 
 ```bash
-# The API fails closed: set an API key to enable it...
-export RESISTAI_API_KEY=$(openssl rand -hex 16)
-# ...or disable auth for local dev only:
-# export RESISTAI_ALLOW_NO_AUTH=true
-
-uvicorn src.api:app --host 0.0.0.0 --port 8000
-# Docs at http://localhost:8000/docs
-# Authenticated requests send the key as the `X-API-Key` header.
+python scripts/smoke_nebius.py --smiles CCO --output /tmp/resistai-nebius-smoke.json
 ```
 
-### Run a Pipeline via CLI
+Exit 0 means a response passed the review-format checks. Exit 2 means the model review did not complete successfully. Missing keys, HTTP errors, timeouts, malformed/truncated responses and rejected review schemas remain explicit. No live provider success was established in the implementation environment.
 
-```bash
-python -m src.cli run \
-  --pathogen klebsiella_pneumoniae \
-  --max-drugs 100 \
-  --novel
-```
+`NVIDIA_API_KEY` separately enables NVIDIA-hosted biology API requests. Hosting on NVIDIA infrastructure alone is not proof of using an NVIDIA-authored open model. Local descriptor computation is not an NVIDIA model call.
 
----
+### Access and spend controls
 
-## SDK Usage
+The UI defaults to loopback, disables public sharing, and hides raw error messages. To bind to a public interface, configure `RESISTAI_HOST=0.0.0.0` plus `RESISTAI_UI_USER` and `RESISTAI_UI_PASSWORD` with a non-placeholder password of at least 16 characters. Put the service behind HTTPS. In Docker, explicitly set the bind host and credentials in the environment; otherwise the loopback default is not reachable through a published container port.
 
-```python
-from src.sdk import Pipeline, Target, MoleculeOptimizer
+The Gradio queue bounds concurrent provider work and queued requests. The Nebius transport bounds prompt/output sizes and per-call token requests, uses per-operation HTTP timeouts, and does not retry or follow redirects. These are **not** account-wide spending limits, durable quotas, tenant isolation, or a total wall-clock deadline. Add deployment-level authentication, rate limits, budget limits and cancellation before untrusted public operation. REST API authentication remains separately configured with `RESISTAI_API_KEY`.
 
-# Define a target (from PDB, UniProt, or a raw sequence)
-target = Target.from_pdb("3SPU", name="NDM-1")  # NDM-1 crystal structure
+## Architecture and retained interfaces
 
-# Build and run a composable pipeline
-results = (
-    Pipeline(target)
-    .fold()                 # ESMFold structure prediction
-    .screen(max_drugs=100)  # Boltz-2 virtual screening
-    .dock(top_k=3)          # DiffDock pose generation
-    .run(progress=True)
-)
-print(results.to_report())
+- `src/models/nebius_transport.py`: bounded HTTP exchange and thread-local response receipts.
+- `src/models/llm_client.py`: historical `NebisLLM` compatibility interface with research-only prompts.
+- `src/research_review.py`: descriptor evidence plus optional, schema-checked model commentary.
+- `src/research_integrity.py`: descriptor calculations, output classification and report rendering.
+- `src/research_execution.py`: shared legacy UI/export path with no silent UI fixture substitution.
+- `src/ui/`: research-first Gradio interface and compatible callback signatures.
+- `src/ui_security.py`: loopback/default and public-bind authentication policy.
+- `src/models/nim/boltz2.py`: reject malformed responses and distinguish observed values from defaults.
 
-# Closed-loop multi-objective molecule optimisation
-optimizer = MoleculeOptimizer(
-    target_sequence=target.sequence,
-    seed_smiles="CC1=CC=C(C=C1)C(=O)N",
-    objectives=["binding", "qed", "lipinski", "toxicity"],
-    max_iterations=3,
-)
-opt = optimizer.run()
-print(opt.summary())
-```
+Existing SDK, CLI, FastAPI, generation and orchestration modules remain in the repository. They have not all been migrated to the new evidence contract. In particular, the legacy orchestrator still uses unverified hardcoded target/compound records, heuristic fallbacks and model-use metadata that must not be treated as validated provenance. Legacy regulatory, explainability, cost-comparison and presentation scripts are not qualified for public claims and are no longer presented as default UI features.
 
-> Run the full orchestrated pipeline programmatically with
-> `PipelineOrchestrator().run_full_pipeline(pathogen_name="klebsiella_pneumoniae")`.
+## Verification and release gates
 
----
+See [the implementation and readiness record](docs/NEBIUS_READINESS_2026-10-30.md), [design](docs/superpowers/specs/2026-10-30-evidence-integrity-design.md), and [plan](docs/superpowers/plans/2026-10-30-evidence-integrity.md).
 
-## Architecture
+Tests exercise real descriptor calculations and application boundaries; provider responses are simulated at the HTTP boundary. They do not establish successful live API calls, biological correctness, scientific benchmark quality, or deployment readiness. A full repository CI run under the pinned dependencies, a live model receipt, authenticated hosted acceptance, license/ownership approval, public judge access and a truthful sub-three-minute video remain release gates.
 
-```
-resist-ai/
-  src/
-    app.py                          # Gradio web UI
-    api/                            # FastAPI REST endpoints
-    pipeline/
-      orchestrator.py               # 4-stage pipeline coordinator
-      target_discovery/
-        evo2_client.py              # Evo2-40b genomic analysis
-        esm2_client.py              # ESM-2 embeddings (druggability scoring)
-        target_analyzer.py          # Druggability scoring
-      drug_screening/
-        boltz2_client.py            # Boltz-2 binding prediction
-        molmim_generator.py         # MolMIM molecule generation
-        screener.py                 # Drug library screening
-        similarity_search.py        # Tanimoto similarity
-      safety_prediction/
-        admet_predictor.py          # ADMET property prediction
-        off_target_analyzer.py      # Off-target risk assessment
-        safety_scorer.py            # Composite safety scoring
-      report_generator.py           # LLM-powered report synthesis
-    models/
-      nim_client.py                 # NVIDIA NIM API client
-      llm_client.py                 # Nebius LLM client (Qwen3, DeepSeek)
-      schemas.py                    # Shared dataclasses
-    sdk/
-      target.py                     # Target protein class
-      results.py                    # Result containers
-    data/
-      pathogens.py                  # ESKAPE pathogen metadata
-      drug_library.py               # FDA/clinical drug database
-      pdb_fetcher.py                # PDB/UniProt data retrieval
-    utils/
-      config.py                     # Settings & API key management
-      chemistry.py                  # RDKit utilities
-  tests/
-  config/
-  docs/
-```
+## Provenance and ownership
 
----
+ResistAI originated with Team BioHack at the Evolved 25 health/life-sciences hackathon. This work reuses that repository and explicitly separates inherited functionality from the October 30 evidence-integrity changes. Earlier README results and performance/regulatory claims were not independently established by this execution and are not repeated as verified results.
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| AI Models (Biology) | NVIDIA NIM (Evo2, ESMFold, Boltz-2, DiffDock, MolMIM, RFdiffusion, ProteinMPNN) |
-| AI Models (Reasoning) | Nebius AI Studio (Qwen3-235B, DeepSeek-R1) |
-| Pipeline Orchestration | Python, async coordination |
-| Web UI | Gradio 4.x |
-| REST API | FastAPI + Uvicorn |
-| Cheminformatics | RDKit |
-| Visualization | Plotly, 3Dmol.js |
-| Data Sources | PDB, UniProt, DrugBank |
-
----
-
-## Regulatory Pathway
-
-ResistAI outputs are designed to feed directly into a regulatory submission strategy:
-
-| Pathway | Applicability |
-|---------|--------------|
-| **505(b)(2)** | Repurposed compounds -- leverage existing safety data to skip Phase I |
-| **FDA Modernization Act 2.0** (2023) | AI-generated evidence may reduce animal testing requirements |
-| **Breakthrough Therapy Designation** | AMR targets with no approved therapies qualify for expedited review |
-| **QIDP Designation** | Qualified Infectious Disease Product -- 5-year exclusivity + priority review |
-| **BARDA/CARB-X Funding** | De novo protein binders eligible for non-dilutive AMR funding |
-
-The pipeline generates structured output compatible with IND (Investigational New Drug) application requirements: target justification, binding data, ADMET profiles, and off-target analysis.
-
----
-
-## Business Model
-
-| Tier | Offering | Price Point |
-|------|----------|-------------|
-| **API Access** | Pay-per-pipeline-run for biotech startups | Usage-based |
-| **Enterprise** | Dedicated deployment, custom pathogen panels, SLA | Annual contract |
-| **Academic** | Free tier for published research | Free / sponsored |
-| **Partnership** | Co-development with pharma on specific ESKAPE targets | Revenue share |
-
-**Market size:** The global AMR therapeutics market is projected to reach $28.2B by 2031. AI-driven discovery can compress the 10-year, $1B pipeline to months and single-digit millions.
-
----
-
-## Team BioHack
-
-| Name | Role |
-|------|------|
-| **Team BioHack** | Architecture, AI pipeline, integration |
-
----
-
-## Hackathon Context
-
-**Event:** Evolved 25 -- AI in Health & Life Sciences Hackathon
-**Location:** Toronto, ON | **Dates:** March 27--29, 2026
-**Sponsors:** NVIDIA BioNeMo, Nebius AI Studio
-
-### Resources Used
-
-- **NVIDIA NIM Biology Models** -- 7 models accessed via NIM API for protein structure, binding, docking, generation, and design
-- **Nebius AI Studio** -- 2 frontier LLMs (Qwen3-235B, DeepSeek-R1) for clinical reasoning and report generation
-- **NVIDIA BioNeMo** -- Reference architectures for biology AI pipelines
-
-### What We Built in 48 Hours
-
-- Fully automated 4-stage drug discovery pipeline
-- 9 integrated AI models with real API calls producing real results
-- Gradio web UI with progressive disclosure (executive view + technical depth)
-- REST API with OpenAPI documentation
-- Python SDK for programmatic access
-- Support for 4 ESKAPE pathogens with extensible configuration
-- De novo protein binder design pathway (RFdiffusion + ProteinMPNN)
-- Novel molecule generation with drug-likeness optimization (MolMIM)
-- ADMET safety prediction and off-target analysis
-- LLM-synthesized clinical reasoning for every candidate
-
-## Related Projects
-
-- **[Selectra](https://github.com/k2jac9/selectra)** (private) — sibling project for
-  selective hit-finding ML on hard-to-distinguish targets (first application: the
-  PGK2-over-PGK1 DEL-ML challenge). Spun off from this repo's research; reuses some of
-  ResistAI's chemistry / NVIDIA NIM components.
-
----
-
-<div align="center">
-
-**ResistAI** -- Because the post-antibiotic era should not be our future.
-
-*Built at Evolved 25, Toronto 2026*
+[Selectra](https://github.com/k2jac9/selectra) is a separate private sibling project. This change does not alter its scope or licensing.
 
 Copyright (c) 2026 Team BioHack. All rights reserved. License terms to be determined.
-
-</div>
