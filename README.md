@@ -1,401 +1,287 @@
 <div align="center">
 
-```
- ____           _     _      _    ___
-|  _ \ ___  ___(_)___| |_   / \  |_ _|
-| |_) / _ \/ __| / __| __| / _ \  | |
-|  _ <  __/\__ \ \__ \ |_ / ___ \ | |
-|_| \_\___||___/_|___/\__/_/   \_\___|
-```
+<h1>🧬 ResistAI</h1>
+<h3>Evidence before conclusions.</h3>
 
-### AI-Orchestrated Drug Discovery for Antimicrobial Resistance
+<p>A research workbench for molecular calculations, optional AI review,<br/>and an inspectable record of what is known and what is missing.</p>
 
-**9 AI models. One automated pipeline. Zero approved inhibitors for NDM-1 -- until now.**
+<p>
+  <a href="docs/submission/RELEASE_STATUS.md"><img alt="Status: research prototype" src="https://img.shields.io/badge/STATUS-RESEARCH_PROTOTYPE-7C3AED?style=for-the-badge" /></a>
+  <a href="#workflow"><img alt="Approach: evidence first" src="https://img.shields.io/badge/APPROACH-EVIDENCE_FIRST-0F766E?style=for-the-badge" /></a>
+  <a href="docs/submission/RELEASE_STATUS.md"><img alt="Live provider validation: pending" src="https://img.shields.io/badge/LIVE_VALIDATION-PENDING-B45309?style=for-the-badge" /></a>
+</p>
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)]()
-[![Models](https://img.shields.io/badge/AI%20models-9-green)]()
-[![NVIDIA NIM](https://img.shields.io/badge/NVIDIA-NIM%20Biology-76b900)]()
-[![Nebius AI](https://img.shields.io/badge/Nebius-AI%20Studio-blueviolet)]()
+<p>
+  <img alt="Python 3.11" src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" />
+  <img alt="FastAPI interface" src="https://img.shields.io/badge/API-FastAPI-009688?style=flat-square&amp;logo=fastapi&amp;logoColor=white" />
+  <img alt="RDKit calculations" src="https://img.shields.io/badge/CHEMISTRY-RDKit-0F766E?style=flat-square" />
+  <img alt="NVIDIA Nemotron integration" src="https://img.shields.io/badge/NVIDIA-Nemotron-4D7C0F?style=flat-square&amp;logo=nvidia&amp;logoColor=white" />
+  <img alt="Nebius Token Factory integration" src="https://img.shields.io/badge/INFERENCE-Nebius_Token_Factory-7C3AED?style=flat-square" />
+  <img alt="SQLite request limits" src="https://img.shields.io/badge/LIMITS-SQLite-0369A1?style=flat-square&amp;logo=sqlite&amp;logoColor=white" />
+  <img alt="Docker submission profile" src="https://img.shields.io/badge/DEPLOY-Docker-2563EB?style=flat-square&amp;logo=docker&amp;logoColor=white" />
+</p>
 
-[Quick Start](#quick-start) | [Pipeline](#pipeline-architecture) | [Results](#key-results) | [SDK](#sdk-usage) | [API Docs](#quick-start)
+<p>
+  <a href="#quickstart"><strong>Quickstart</strong></a> ·
+  <a href="#workflow">Workflow</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#verification">Verification</a> ·
+  <a href="#submission-kit">Submission kit</a>
+</p>
 
 </div>
 
-![alt text](ResistAI-1.png)
+> [!IMPORTANT]
+> **Research software, not a clinically validated system.** Calculated descriptors and model commentary do not establish measured binding affinity, antimicrobial efficacy, patient safety, or regulatory eligibility. Live model usage, hosted judge access, and completed submission remain separate release gates.
 
----
-## The Problem
+## Overview
 
-Antimicrobial resistance (AMR) is an accelerating global health crisis.
+ResistAI grew out of an antimicrobial-resistance research prototype. Its focused evidence-review workflow asks three questions: **What was calculated? What did the model say? What evidence is still missing?**
 
-| Stat | Value |
-|------|-------|
-| Deaths directly caused by AMR annually | **1.27 million** |
-| Deaths associated with AMR annually | **4.95 million** |
-| New antibiotic classes discovered since 1987 | **0** |
-| Large pharma companies still in antibiotic R&D | **4 of 20** |
-| WHO-designated "Critical Priority" pathogens | **ESKAPE group** |
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>🟢 Calculate</h3>
+      <p>Compute molecular descriptors with RDKit. Record the canonical structure, software version, and input fingerprint.</p>
+      <strong>Actual calculations, not invented scores.</strong>
+    </td>
+    <td width="33%" valign="top">
+      <h3>🟣 Review</h3>
+      <p>Explicitly request NVIDIA Nemotron commentary through Nebius Token Factory. Keep generated prose separate from the evidence.</p>
+      <strong>Model output remains unreviewed.</strong>
+    </td>
+    <td width="33%" valign="top">
+      <h3>🔵 Inspect</h3>
+      <p>Inspect and download the JSON record. Check response metadata, input/output fingerprints, and visible failure states.</p>
+      <strong>No silent simulated success.</strong>
+    </td>
+  </tr>
+</table>
 
-The economics are brutal: antibiotics cure patients in days (low revenue), resistance evolves in months (short product life), and clinical trials cost >$1B. Pharma has fled the space. The pipeline is empty. People are dying from infections we solved 80 years ago.
+The dedicated judge application uses **FastAPI with a small HTML/JavaScript interface**. It exposes the focused workflow, not the legacy biological pipeline. Model review is off by default and requires explicit opt-in.
 
-**NDM-1 metallo-beta-lactamase** -- a resistance enzyme spreading globally across Gram-negative bacteria -- has **no approved inhibitor**. It neutralizes carbapenems, our antibiotics of last resort.
+## Workflow
 
----
+```mermaid
+flowchart LR
+    A["Molecular input<br/>SMILES"] --> B["Computed evidence<br/>RDKit + input fingerprint"]
+    B -->|Opt in| C["Model review<br/>Nemotron on Nebius"]
+    B -->|Descriptors only| D["Inspect and export<br/>JSON evidence record"]
+    C -->|Accepted response format| D
+    C -.->|Provider or format failure| E["Explicit failure state<br/>No replacement findings"]
+    E --> D
 
-## Our Solution
-
-ResistAI chains **9 frontier AI models** into a fully automated drug discovery pipeline that runs in minutes, not years. One click takes you from a pathogen name to ranked, safety-scored drug candidates with AI-generated clinical reasoning.
-
-**Two parallel discovery paradigms:**
-
-1. **Small-molecule repurposing** -- screen existing drugs and generate novel analogs against resistance targets
-2. **De novo protein binder design** -- computationally design entirely new protein therapeutics
-
-Both paradigms run through the same orchestrated pipeline, accessible via a **Gradio web UI**, **REST API**, **CLI**, or **Python SDK**.
-
----
-
-## Pipeline Architecture
-
-```
-                         ResistAI Pipeline
- ============================================================
-
- STAGE 1: TARGET DISCOVERY
- -------------------------
-   Pathogen       Evo2-40b          ESMFold
-   Selection  --> (genomic       --> (3D structure
-   (ESKAPE)       analysis)          prediction)
-                      |                   |
-                      v                   v
-               resistance gene      folded protein
-               identification       structure (PDB)
-
- STAGE 2: DRUG SCREENING + GENERATION
- -------------------------------------
-   Known Drug       Boltz-2            MolMIM
-   Library      --> (binding        --> (novel molecule
-   (FDA/clinical)   prediction,        generation,
-                    confidence)        QED scoring)
-                        |                   |
-                        v                   v
-                  ranked hits          novel analogs
-                  + docking scores     optimized for
-                                       drug-likeness
-
- STAGE 3: PROTEIN BINDER DESIGN (de novo)
- -----------------------------------------
-   Target          RFdiffusion        ProteinMPNN
-   Structure   --> (backbone       --> (sequence
-                   generation)         design)
-                        |                   |
-                        v                   v
-                  novel protein        amino acid
-                  scaffold             sequences for
-                  (363 residues)       synthesis
-
- STAGE 4: SAFETY + REASONING
- ----------------------------
-   Candidates      ADMET              Qwen3-235B /
-               --> (toxicity,      --> DeepSeek-R1
-                   absorption,        (clinical
-                   metabolism)         reasoning,
-                        |              synthesis)
-                        v                   |
-                  safety scores             v
-                  + off-target        final ranked
-                  risk flags          report with
-                                      rationale
+    classDef input fill:#DBEAFE,stroke:#2563EB,color:#172554,stroke-width:2px;
+    classDef computed fill:#CCFBF1,stroke:#0F766E,color:#134E4A,stroke-width:2px;
+    classDef model fill:#EDE9FE,stroke:#7C3AED,color:#3B0764,stroke-width:2px;
+    classDef record fill:#DCFCE7,stroke:#15803D,color:#14532D,stroke-width:2px;
+    classDef failure fill:#FEF3C7,stroke:#B45309,color:#78350F,stroke-width:2px;
+    class A input;
+    class B computed;
+    class C model;
+    class D record;
+    class E failure;
 ```
 
----
+**Reading the diagram:** blue is the supplied input; teal is computed evidence; violet is optional commentary; green is the inspectable record; amber is an explicit failure. Authentication protects the application, and a persistent attempt limit gates model requests. A rejected request does not become a fabricated result.
 
-## Models Used
+<details>
+<summary><strong>🔎 What is inside the evidence record?</strong></summary>
 
-| # | Model | Task | Provider | Endpoint |
-|---|-------|------|----------|----------|
-| 1 | **Evo2-40b** | Genomic analysis, resistance gene detection | NVIDIA NIM | `nvidia/evo2-40b` |
-| 2 | **ESMFold** | Protein structure prediction (single-sequence) | NVIDIA NIM | `nvidia/esmfold` |
-| 3 | **Boltz-2** | Biomolecular binding & docking prediction | NVIDIA NIM | `nvidia/boltz-2` |
-| 4 | **DiffDock** | Molecular docking pose generation | NVIDIA NIM | `nvidia/diffdock` |
-| 5 | **MolMIM** | Novel molecule generation & optimization | NVIDIA NIM | `nvidia/molmim` |
-| 6 | **RFdiffusion** | De novo protein backbone design | NVIDIA NIM | `nvidia/rfdiffusion` |
-| 7 | **ProteinMPNN** | Protein sequence design from backbone | NVIDIA NIM | `nvidia/proteinmpnn` |
-| 8 | **Qwen3-235B-A22B** | Clinical reasoning & report synthesis | Nebius AI | `Qwen/Qwen3-235B-A22B-Instruct-2507` |
-| 9 | **DeepSeek-R1** | Deep chain-of-thought analysis | Nebius AI | `deepseek-ai/DeepSeek-R1-0528` |
+The record separates three kinds of information:
 
----
+| Layer | Recorded information | What it does not prove |
+| --- | --- | --- |
+| **Computed evidence** | Canonical SMILES, RDKit version, descriptors, input fingerprint | Drug identity, biological activity, or safety |
+| **Model commentary** | Structured review and its allowed evidence identifier, when accepted | Scientific accuracy or independent human review |
+| **Provider receipt** | Requested and returned model IDs, endpoint, response ID when available, latency, reported token usage, and input/output hashes | Independent attestation or experimental validation |
 
-## Key Results
+Format checks do not turn prose into scientific evidence. Failed or rejected reviews are recorded explicitly; no successful model receipt is invented.
 
-Real outputs from live API calls during the hackathon:
+</details>
 
-### Binding Prediction (Boltz-2)
+## Quickstart
 
-| Drug | Target | Confidence | Status |
-|------|--------|------------|--------|
-| Sulbactam-Durlobactam | NDM-1 | **0.913** | FDA-approved (2023) for A. baumannii |
-| Cefiderocol | NDM-1 | **0.887** | Siderophore cephalosporin |
-| Meropenem-Vaborbactam | KPC-2 | **0.901** | Carbapenem + boronic acid inhibitor |
-
-### Novel Molecule Generation (MolMIM)
-
-| Metric | Value |
-|--------|-------|
-| Molecules generated per run | 10-50 |
-| QED (drug-likeness) range | **0.82 -- 0.93** |
-| Tanimoto similarity to parent | 0.4 -- 0.7 |
-| Novel scaffolds produced | Yes |
-
-### De Novo Protein Design (RFdiffusion + ProteinMPNN)
-
-| Metric | Value |
-|--------|-------|
-| Backbone residues designed | **363** |
-| Sequence recovery (ProteinMPNN) | ~42% |
-| Designable topology | Yes |
-
-### Pathogens Supported
-
-| Pathogen | WHO Priority | Key Target |
-|----------|-------------|------------|
-| *Klebsiella pneumoniae* | Critical | NDM-1, KPC-2 |
-| *Acinetobacter baumannii* | Critical | OXA-23, OXA-51 |
-| *Pseudomonas aeruginosa* | Critical | VIM-2, MexAB-OprM |
-| *Enterobacter cloacae* | Critical | AmpC, NDM-1 |
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.10+
-- NVIDIA NIM API key ([build.nvidia.com](https://build.nvidia.com))
-- Nebius AI API key ([studio.nebius.com](https://studio.nebius.com))
-
-### Install
+**Recommended: run the dedicated judge application.** Use Python 3.11 and Bash for the commands below. Access to the private repository is currently required.
 
 ```bash
-git clone https://github.com/your-org/resist-ai.git
+git clone --branch fix/nebius-evidence-integrity-20261030 \
+  https://github.com/k2jac9/resist-ai.git
 cd resist-ai
-pip install -r requirements.txt
 
-# Optional: local ESM-2 druggability scoring (~2GB, falls back to a
-# sequence heuristic if not installed)
-pip install -r requirements-ml.txt
+python3.11 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-submission.txt
+
+mkdir -p data
+export RESISTAI_QUOTA_DB="$(pwd)/data/attempts.sqlite3"
+export RESISTAI_UI_USER=judge
+
+# Enter secrets without putting their values in shell history.
+read -rs -p "Judge password (at least 16 characters): " RESISTAI_UI_PASSWORD
+printf '\n'
+export RESISTAI_UI_PASSWORD
+read -rs -p "Nebius API key: " NEBIUS_API_KEY
+printf '\n'
+export NEBIUS_API_KEY
+
+export NEBIUS_BASE_URL=https://api.tokenfactory.us-central1.nebius.com/v1
+export NEBIUS_MODEL=nvidia/nemotron-3-super-120b-a12b
+
+python -m src.submission_app
 ```
 
-### Configure
+Open **<http://127.0.0.1:7860>**, authenticate, and leave model review off for the first calculation. The default `CCO` is a software test input, **not an AMR treatment candidate**.
+
+> [!NOTE]
+> The dedicated application reads **process environment variables**, not an automatically loaded `.env` file. It refuses startup without judge authentication, a provider key, and an absolute writable quota-database path. Having a key configured does not establish a successful provider call.
+
+### Provider configuration
+
+| Setting | Purpose |
+| --- | --- |
+| `NEBIUS_API_KEY` | Server-side provider credential; never commit or expose it |
+| `NEBIUS_BASE_URL` | Configured default: `https://api.tokenfactory.us-central1.nebius.com/v1` |
+| `NEBIUS_MODEL` | Configured default: `nvidia/nemotron-3-super-120b-a12b` |
+| `RESISTAI_UI_USER` / `RESISTAI_UI_PASSWORD` | Separate judge credentials, not the provider key |
+| `RESISTAI_QUOTA_DB` | Absolute path to the persistent SQLite attempt database |
+
+Verify actual account/model access and the **returned model identity** during qualification. The integration's reference is the [Nebius Nemotron cookbook](https://github.com/nebius/token-factory-cookbook/blob/main/models/nemotron/nemotron3-super-120B.md); a configured model name alone is not proof of usage or eligibility.
+
+<details>
+<summary><strong>🐳 Run the dedicated Docker profile</strong></summary>
+
+After configuring the environment variables above:
 
 ```bash
+docker build -f Dockerfile.submission -t resistai-evidence .
+docker volume create resistai-evidence-data
+
+docker run --rm -p 127.0.0.1:7860:7860 \
+  --mount source=resistai-evidence-data,target=/data \
+  -e NEBIUS_API_KEY -e NEBIUS_BASE_URL -e NEBIUS_MODEL \
+  -e RESISTAI_UI_USER -e RESISTAI_UI_PASSWORD \
+  resistai-evidence
+```
+
+For hosted deployment, put the service behind managed HTTPS. Use one replica and a persistent `/data` volume writable by UID/GID `10001`. Do not replace this with ephemeral storage or independent per-replica databases: that resets or multiplies the attempt allowance. See the [complete hosting and judge-acceptance guide](docs/submission/README.md).
+
+</details>
+
+<details>
+<summary><strong>🧪 Use the broader local research interface</strong></summary>
+
+The older Gradio interface is retained separately. To explore descriptor calculations without a provider key:
+
+```bash
+python -m pip install -r requirements-dev.txt
 cp .env.example .env
-# Edit .env with your API keys:
-#   NVIDIA_API_KEY=nvapi-...
-#   NEBIUS_API_KEY=...
-```
-
-### Run the Web UI
-
-```bash
 python -m src.app
-# Opens at http://localhost:7860
 ```
 
-### Run the REST API
+Run this from the repository root. The local Gradio interface defaults to loopback, reads the root `.env`, and reports provider-backed operations unavailable without credentials. Its public-bind setting is `RESISTAI_HOST`; the dedicated submission profile instead uses `RESISTAI_UI_HOST`.
 
-```bash
-# The API fails closed: set an API key to enable it...
-export RESISTAI_API_KEY=$(openssl rand -hex 16)
-# ...or disable auth for local dev only:
-# export RESISTAI_ALLOW_NO_AUTH=true
+Co-folding views show Boltz-2 structural-confidence metrics, not measured affinity. Legacy orchestration and simulations remain explicitly unverified. `NVIDIA_API_KEY` is separate from the Nebius key and is used by the retained NVIDIA-hosted biology clients; those clients are not part of the dedicated judge workflow.
 
-uvicorn src.api:app --host 0.0.0.0 --port 8000
-# Docs at http://localhost:8000/docs
-# Authenticated requests send the key as the `X-API-Key` header.
-```
+</details>
 
-### Run a Pipeline via CLI
+## Security and operating limits
 
-```bash
-python -m src.cli run \
-  --pathogen klebsiella_pneumoniae \
-  --max-drugs 100 \
-  --novel
-```
+| Control | Dedicated submission profile |
+| --- | --- |
+| 🔐 **Authentication** | Interface and review route require HTTP Basic authentication; use HTTPS for hosted access |
+| 🧱 **Narrow application surface** | No legacy pipeline, API documentation, or server file-export routes |
+| ⏱️ **Persistent admission** | Default: 4 model attempts per rolling minute, 40 per rolling 24 hours, 200 over the database lifetime |
+| 🧾 **Conservative accounting** | Failed model attempts count; descriptor-only requests do not consume model attempts |
+| 🛡️ **Bounded transport** | Input/output limits, no redirects or retries, and per-operation HTTP timeouts |
+| 📦 **Browser-side export** | Download the displayed JSON record without a server-side export file |
 
----
+The global attempt settings are `RESISTAI_MODEL_PER_MINUTE`, `RESISTAI_MODEL_PER_DAY`, and `RESISTAI_MODEL_LIFETIME`. Preserve the database across restarts and releases.
 
-## SDK Usage
-
-```python
-from src.sdk import Pipeline, Target, MoleculeOptimizer
-
-# Define a target (from PDB, UniProt, or a raw sequence)
-target = Target.from_pdb("3SPU", name="NDM-1")  # NDM-1 crystal structure
-
-# Build and run a composable pipeline
-results = (
-    Pipeline(target)
-    .fold()                 # ESMFold structure prediction
-    .screen(max_drugs=100)  # Boltz-2 virtual screening
-    .dock(top_k=3)          # DiffDock pose generation
-    .run(progress=True)
-)
-print(results.to_report())
-
-# Closed-loop multi-objective molecule optimisation
-optimizer = MoleculeOptimizer(
-    target_sequence=target.sequence,
-    seed_smiles="CC1=CC=C(C=C1)C(=O)N",
-    objectives=["binding", "qed", "lipinski", "toxicity"],
-    max_iterations=3,
-)
-opt = optimizer.run()
-print(opt.summary())
-```
-
-> Run the full orchestrated pipeline programmatically with
-> `PipelineOrchestrator().run_full_pipeline(pathogen_name="klebsiella_pneumoniae")`.
-
----
+> [!WARNING]
+> Request limits are **not an account-wide dollar cap**, per-user isolation, or a total wall-clock deadline. Configure provider spending controls separately. Keep API keys and judge passwords out of source control, public documentation, videos, and submission fields intended for public display.
 
 ## Architecture
 
+| Component | Responsibility |
+| --- | --- |
+| [`src/submission_app.py`](src/submission_app.py) + [`src/submission.html`](src/submission.html) | Authenticated judge application and browser UI |
+| [`src/request_limits.py`](src/request_limits.py) | Atomic, persistent model-attempt admission |
+| [`src/research_integrity.py`](src/research_integrity.py) | Molecular descriptors and evidence classification |
+| [`src/research_review.py`](src/research_review.py) | Optional, format-checked model commentary |
+| [`src/models/nebius_transport.py`](src/models/nebius_transport.py) | Bounded provider exchange and response receipts |
+| [`src/models/llm_client.py`](src/models/llm_client.py) | Research prompts and the historical `NebisLLM` interface |
+| [`Dockerfile.submission`](Dockerfile.submission) | Dedicated submission runtime |
+| [`tests/`](tests/) | Application, transport, evidence, and admission checks |
+
+<details>
+<summary><strong>🗂️ Retained interfaces and scientific boundaries</strong></summary>
+
+The repository also contains the Gradio interface, SDK, CLI, broader FastAPI routes, generation modules, and legacy orchestration. They have **not** all been migrated to the focused evidence contract.
+
+The legacy orchestrator retains unverified hardcoded target/compound records, heuristic fallbacks, and metadata that must not be treated as established model provenance. Regulatory forecasts, synthetic explainability, cost comparisons, and presentation scripts are not qualified scientific capabilities. Their presence in the repository does not mean they are part of the dedicated submission application.
+
+See the [readiness audit](docs/NEBIUS_READINESS_2026-10-30.md), [evidence-integrity design](docs/superpowers/specs/2026-10-30-evidence-integrity-design.md), and [implementation plan](docs/superpowers/plans/2026-10-30-evidence-integrity.md).
+
+</details>
+
+## Verification
+
+<a href="https://github.com/k2jac9/resist-ai/actions/runs/41019726922"><img alt="Recorded CI: 365 tests passed at implementation commit fbb11f9" src="https://img.shields.io/badge/RECORDED_CI-365_TESTS_AT_fbb11f9-15803D?style=for-the-badge" /></a>
+
+**Verified implementation:** [`fbb11f9`](https://github.com/k2jac9/resist-ai/commit/fbb11f9303755be56eba30711e357342c774b9a8), recorded October 30, 2026. This is a pinned verification record, not a claim about every future commit.
+
+| Check | Recorded outcome |
+| --- | --- |
+| 🟢 Full repository tests | **365 passed** under CPython 3.11.17 with the repository requirements |
+| 🟢 Syntax and lint | Tracked Python compilation and Ruff passed |
+| 🟢 Container acceptance | Submission image built; authentication and real-descriptor smoke checks passed |
+| 🟠 Live provider and hosted acceptance | **Pending**; controlled test responses are not live model usage |
+
+Read the [CI run](https://github.com/k2jac9/resist-ai/actions/runs/41019726922) and [exact-commit release record](docs/submission/RELEASE_STATUS.md).
+
+```bash
+python -m pip install -r requirements-dev.txt
+ruff check src/ tests/ scripts/
+python -m pytest -q
 ```
-resist-ai/
-  src/
-    app.py                          # Gradio web UI
-    api/                            # FastAPI REST endpoints
-    pipeline/
-      orchestrator.py               # 4-stage pipeline coordinator
-      target_discovery/
-        evo2_client.py              # Evo2-40b genomic analysis
-        esm2_client.py              # ESM-2 embeddings (druggability scoring)
-        target_analyzer.py          # Druggability scoring
-      drug_screening/
-        boltz2_client.py            # Boltz-2 binding prediction
-        molmim_generator.py         # MolMIM molecule generation
-        screener.py                 # Drug library screening
-        similarity_search.py        # Tanimoto similarity
-      safety_prediction/
-        admet_predictor.py          # ADMET property prediction
-        off_target_analyzer.py      # Off-target risk assessment
-        safety_scorer.py            # Composite safety scoring
-      report_generator.py           # LLM-powered report synthesis
-    models/
-      nim_client.py                 # NVIDIA NIM API client
-      llm_client.py                 # Nebius LLM client (Qwen3, DeepSeek)
-      schemas.py                    # Shared dataclasses
-    sdk/
-      target.py                     # Target protein class
-      results.py                    # Result containers
-    data/
-      pathogens.py                  # ESKAPE pathogen metadata
-      drug_library.py               # FDA/clinical drug database
-      pdb_fetcher.py                # PDB/UniProt data retrieval
-    utils/
-      config.py                     # Settings & API key management
-      chemistry.py                  # RDKit utilities
-  tests/
-  config/
-  docs/
+
+<details>
+<summary><strong>🔌 Probe a real Nebius response</strong></summary>
+
+With the server-side provider environment configured:
+
+```bash
+python scripts/smoke_nebius.py \
+  --smiles CCO \
+  --output /tmp/resistai-nebius-smoke.json
 ```
 
----
+Exit `0` means a response passed the review-format checks. Exit `2` means the review did not complete successfully. Inspect the returned model identity, receipt, and commentary. This direct local probe is not the authenticated submission route and does not replace hosted quota or judge-access acceptance.
 
-## Tech Stack
+</details>
 
-| Layer | Technology |
-|-------|-----------|
-| AI Models (Biology) | NVIDIA NIM (Evo2, ESMFold, Boltz-2, DiffDock, MolMIM, RFdiffusion, ProteinMPNN) |
-| AI Models (Reasoning) | Nebius AI Studio (Qwen3-235B, DeepSeek-R1) |
-| Pipeline Orchestration | Python, async coordination |
-| Web UI | Gradio 4.x |
-| REST API | FastAPI + Uvicorn |
-| Cheminformatics | RDKit |
-| Visualization | Plotly, 3Dmol.js |
-| Data Sources | PDB, UniProt, DrugBank |
+## Submission kit
 
----
+| Open this | What you will find |
+| --- | --- |
+| 🚀 [Setup and judge instructions](docs/submission/README.md) | Environment, hosting contract, and acceptance procedure |
+| 📝 [Devpost draft](docs/submission/DEVPOST.md) | Prepared project story and submission copy |
+| 🎬 [Video script](docs/submission/VIDEO_SCRIPT.md) | A 2:40 plan for filming actual application behavior |
+| 💬 [Feedback worksheet](docs/submission/FEEDBACK.md) | Implementation notes and space for measured live observations |
+| 🚦 [Release status](docs/submission/RELEASE_STATUS.md) | Verified work, unresolved access requirements, and release gates |
+| 🔎 [Draft PR #15](https://github.com/k2jac9/resist-ai/pull/15) | The working branch and review history |
 
-## Regulatory Pathway
+**Release snapshot, October 30, 2026:** code, tests, and container checks are prepared and verified as identified above. Live inference, hosted judge access, public-source licensing, a qualifying public video, team confirmation, and final submission are not yet established by this work record. There is no verified live-demo or submitted-entry link to present.
 
-ResistAI outputs are designed to feed directly into a regulatory submission strategy:
+## Provenance and ownership
 
-| Pathway | Applicability |
-|---------|--------------|
-| **505(b)(2)** | Repurposed compounds -- leverage existing safety data to skip Phase I |
-| **FDA Modernization Act 2.0** (2023) | AI-generated evidence may reduce animal testing requirements |
-| **Breakthrough Therapy Designation** | AMR targets with no approved therapies qualify for expedited review |
-| **QIDP Designation** | Qualified Infectious Disease Product -- 5-year exclusivity + priority review |
-| **BARDA/CARB-X Funding** | De novo protein binders eligible for non-dilutive AMR funding |
+ResistAI originated with **Team BioHack** at the Evolved 25 health/life-sciences hackathon. This branch reuses that foundation and separates inherited functionality from the October 30 evidence-integrity and submission-profile changes. Earlier performance and regulatory claims are not repeated as verified findings.
 
-The pipeline generates structured output compatible with IND (Investigational New Drug) application requirements: target justification, binding data, ADMET profiles, and off-target analysis.
+[Selectra](https://github.com/k2jac9/selectra) is a separate private sibling project; this work does not change its scope or licensing.
+
+**Copyright (c) 2026 Team BioHack. All rights reserved. License terms to be determined.** Public distribution and an open-source license require the appropriate ownership permissions.
 
 ---
 
-## Business Model
-
-| Tier | Offering | Price Point |
-|------|----------|-------------|
-| **API Access** | Pay-per-pipeline-run for biotech startups | Usage-based |
-| **Enterprise** | Dedicated deployment, custom pathogen panels, SLA | Annual contract |
-| **Academic** | Free tier for published research | Free / sponsored |
-| **Partnership** | Co-development with pharma on specific ESKAPE targets | Revenue share |
-
-**Market size:** The global AMR therapeutics market is projected to reach $28.2B by 2031. AI-driven discovery can compress the 10-year, $1B pipeline to months and single-digit millions.
-
----
-
-## Team BioHack
-
-| Name | Role |
-|------|------|
-| **Team BioHack** | Architecture, AI pipeline, integration |
-
----
-
-## Hackathon Context
-
-**Event:** Evolved 25 -- AI in Health & Life Sciences Hackathon
-**Location:** Toronto, ON | **Dates:** March 27--29, 2026
-**Sponsors:** NVIDIA BioNeMo, Nebius AI Studio
-
-### Resources Used
-
-- **NVIDIA NIM Biology Models** -- 7 models accessed via NIM API for protein structure, binding, docking, generation, and design
-- **Nebius AI Studio** -- 2 frontier LLMs (Qwen3-235B, DeepSeek-R1) for clinical reasoning and report generation
-- **NVIDIA BioNeMo** -- Reference architectures for biology AI pipelines
-
-### What We Built in 48 Hours
-
-- Fully automated 4-stage drug discovery pipeline
-- 9 integrated AI models with real API calls producing real results
-- Gradio web UI with progressive disclosure (executive view + technical depth)
-- REST API with OpenAPI documentation
-- Python SDK for programmatic access
-- Support for 4 ESKAPE pathogens with extensible configuration
-- De novo protein binder design pathway (RFdiffusion + ProteinMPNN)
-- Novel molecule generation with drug-likeness optimization (MolMIM)
-- ADMET safety prediction and off-target analysis
-- LLM-synthesized clinical reasoning for every candidate
-
-## Related Projects
-
-- **[Selectra](https://github.com/k2jac9/selectra)** (private) — sibling project for
-  selective hit-finding ML on hard-to-distinguish targets (first application: the
-  PGK2-over-PGK1 DEL-ML challenge). Spun off from this repo's research; reuses some of
-  ResistAI's chemistry / NVIDIA NIM components.
-
----
-
-<div align="center">
-
-**ResistAI** -- Because the post-antibiotic era should not be our future.
-
-*Built at Evolved 25, Toronto 2026*
-
-Copyright (c) 2026 Team BioHack. All rights reserved. License terms to be determined.
-
-</div>
+<p align="center"><strong>🧬 Calculate precisely. Label uncertainty. Keep the record.</strong></p>
