@@ -37,8 +37,12 @@ Tests: tests/test_research_integrity.py and tests/test_ui_integrity.py.
 Update README; create docs/NEBIUS_READINESS_2026-10-30.md and scripts/smoke_nebius.py.
 - [x] Document audit, new versus inherited behavior, setup, release gates and demo outline.
 - [x] Run all available local tests; record dependency/runtime and sparse-checkout limitations.
-- [ ] Publish to isolated review branch and open a draft PR; inspect source and CI afterward.
+- [x] Publish to isolated review branch and open a draft PR; inspect source and CI afterward.
 
 ## Execution note
 
 The provider/evidence tasks were exercised in a sparse local overlay, not a full original checkout. See the readiness record for exact commands, runtime differences and unexecuted gates. Full CI and live inference remain release requirements. The default UI includes a bounded descriptor-review callback and a public-bind authentication guard; these are deliberate additions, not pre-existing functionality.
+
+## Publication verification
+
+Draft PR #15 is open. Implementation head `be224c063a7421e468d846003c14ffae52ae3868` passed full GitHub CI: 342 tests, Python syntax checks and Ruff lint. The local-overlay limitation above still describes local execution; CI independently exercised the complete repository with its Python 3.11 dependencies. See [the publication verification record](../../VERIFICATION_2026-10-30.md). Live inference, independent review, deployment and publication/license gates remain open.
