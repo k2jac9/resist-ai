@@ -1,0 +1,7 @@
+# Minimal dependencies for the dedicated Evidence Review application.
+# Versions match requirements.txt; legacy interfaces use that full file instead.
+fastapi==0.137.1
+uvicorn==0.49.0
+httpx==0.28.1
+rdkit==2026.3.3
+numpy==2.4.6

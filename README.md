@@ -4,7 +4,11 @@ Research evidence tooling for antimicrobial-resistance research.
 
 **Research prototype, not a validated drug-discovery or clinical system.** This branch repairs evidence presentation and adds a bounded NVIDIA Nemotron review path through Nebius Token Factory. It does not establish biological activity, patient safety, regulatory eligibility, or a completed hackathon submission.
 
-## Start with the Evidence Review tab
+## Hackathon judge application
+
+The dedicated submission profile exposes only descriptor calculation, optional Nemotron review, and an inspectable JSON record. It requires authentication and a persistent SQLite budget for model attempts. Follow the [submission setup and execution instructions](docs/submission/README.md). Use `Dockerfile.submission` for this profile. The [release checklist](docs/submission/RELEASE_STATUS.md) distinguishes prepared code from live inference, hosting, public licensing, and actual submission.
+
+## Existing research interface
 
 Supply a molecular SMILES string. ResistAI computes actual RDKit molecular descriptors, records the canonical input fingerprint and software version, and optionally requests Nemotron commentary about the evidence and its limitations. The default `CCO` is a software test input, not a proposed AMR treatment.
 

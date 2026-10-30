@@ -50,3 +50,38 @@ jobs:
         env:
           RDKIT_SILENCE_DEPRECATION: "1"
         run: pytest -q
+
+  submission-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the focused submission image
+        run: docker build -f Dockerfile.submission -t resistai-submission:test .
+      - name: Verify container authentication and real descriptors
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name resistai-submission -p 127.0.0.1:8786:7860 \
+            -e NEBIUS_API_KEY=ci-placeholder-no-model-call \
+            -e RESISTAI_UI_USER=judge \
+            -e RESISTAI_UI_PASSWORD=ci-only-long-test-password \
+            resistai-submission:test
+          trap 'docker logs resistai-submission; docker rm -f resistai-submission' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8786/healthz; then break; fi
+            sleep 1
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8786/)" = 401
+          curl --fail --silent -u judge:ci-only-long-test-password \
+            -H 'Content-Type: application/json' -H 'X-ResistAI-Request: review' \
+            -d '{"smiles":"CCO","use_model":false}' \
+            http://127.0.0.1:8786/api/review > /tmp/resistai-container-response.json
+          python - <<'PY'
+          import json
+          with open("/tmp/resistai-container-response.json") as source:
+              result = json.load(source)["record"]
+          assert result["descriptor_evidence"]["canonical_smiles"] == "CCO"
+          assert result["model_status"] == "not_requested"
+          assert result["receipt"] is None
+          print("Authenticated descriptor-only container workflow passed; no model call.")
+          PY

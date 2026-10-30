@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ResistAI · Evidence Review</title>
+<style nonce="__NONCE__">
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#0b151b;color:#e9f1f3}
+*{box-sizing:border-box}body{margin:0}main{max-width:1080px;margin:auto;padding:48px 24px}
+header{border-bottom:1px solid #2e424b;padding-bottom:30px;margin-bottom:28px}
+.brand{letter-spacing:.17em;color:#8be3c8;font-size:12px;font-weight:700}
+h1{font-size:clamp(28px,5vw,46px);line-height:1.12;max-width:700px;margin:16px 0}
+p{line-height:1.65;color:#b8cbd3;max-width:780px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+section{border:1px solid #30464f;border-radius:14px;padding:24px;background:#111f27}
+label{display:block;font-weight:600;margin-bottom:10px}textarea{width:100%;padding:14px;font-size:16px;
+border-radius:8px;border:1px solid #607c88;background:#0b151b;color:#fff;resize:vertical}
+.opt{display:flex;gap:10px;align-items:start;line-height:1.5;margin:18px 0;font-weight:400}
+button{border:0;border-radius:7px;padding:12px 18px;background:#8be3c8;color:#062820;font-weight:700;cursor:pointer}
+button:disabled{opacity:.45;cursor:wait}button.secondary{background:#253d47;color:#dfebef}
+h2{margin-top:0;font-size:19px}.badge{display:inline-block;border:1px solid #5a797f;border-radius:20px;padding:5px 11px;font-size:12px;color:#8be3c8}
+#status{min-height:26px;margin-top:18px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.6;color:#c9dce3}
+.wide{margin-top:22px}details{margin-top:20px}summary{cursor:pointer;color:#8be3c8}
+small{color:#b8cbd3;line-height:1.6;display:block}.error{color:#ffb7a6!important}
+@media(max-width:760px){.grid{grid-template-columns:1fr}main{padding:28px 16px}}
+</style>
+</head>
+<body><main>
+<header><div class="brand">RESISTAI / EVIDENCE REVIEW</div>
+<h1>Inspect the evidence.<br>See what is still unknown.</h1>
+<p>Calculate molecular descriptors, then optionally ask NVIDIA Nemotron on Nebius Token Factory to explain their limits. Every model response stays separate from the calculated evidence.</p>
+<span class="badge">Research software · No clinical validation</span></header>
+<div class="grid">
+<section><h2>1. Calculate a structure</h2>
+<form id="review"><label for="smiles">SMILES structure</label>
+<textarea id="smiles" rows="4" maxlength="4096" required spellcheck="false">CCO</textarea>
+<small>The example is ethanol. Structure input does not verify a drug identity.</small>
+<label class="opt"><input id="model" type="checkbox">Request an unreviewed model explanation. This sends the structure and descriptors to Nebius and uses the shared model budget.</label>
+<button id="run" type="submit">Review evidence</button>
+</form><p id="status" role="status" aria-live="polite">Ready. No model request has been made.</p>
+</section>
+<section><h2>2. Understand the boundary</h2>
+<p><strong>Calculated:</strong> molecular weight, logP, polar surface area, hydrogen bond counts, and rotatable bonds, using RDKit.</p>
+<p><strong>Model generated:</strong> commentary about those descriptors and the evidence that is missing.</p>
+<p>Neither establishes binding affinity, antimicrobial efficacy, patient safety, or a treatment recommendation. Response-format checks do not validate scientific accuracy.</p>
+</section></div>
+<section class="wide"><h2>3. Inspect the record</h2>
+<pre id="summary">Your evidence brief will appear here.</pre>
+<button class="secondary" id="download" disabled>Download JSON record</button>
+<details><summary>Response metadata and calculated evidence</summary><pre id="record">No record yet.</pre></details>
+<small>Receipts describe a received provider response. They are not independent scientific verification.</small>
+</section></main>
+<script nonce="__NONCE__">
+const form=document.querySelector('#review'),run=document.querySelector('#run'),status=document.querySelector('#status');
+const summary=document.querySelector('#summary'),record=document.querySelector('#record'),download=document.querySelector('#download');
+let lastRecord=null;
+form.addEventListener('submit',async event=>{
+ event.preventDefault();run.disabled=true;download.disabled=true;lastRecord=null;
+ summary.textContent='';record.textContent='';status.className='';
+ status.textContent=document.querySelector('#model').checked?'Calculating descriptors and requesting a model explanation…':'Calculating descriptors locally on the server…';
+ try{
+  const response=await fetch('/api/review',{method:'POST',headers:{'Content-Type':'application/json','X-ResistAI-Request':'review'},
+   body:JSON.stringify({smiles:document.querySelector('#smiles').value,use_model:document.querySelector('#model').checked})});
+  const data=await response.json();
+  if(!response.ok)throw new Error(data.detail||'Review unavailable');
+  lastRecord=data.record;summary.textContent=data.summary;record.textContent=JSON.stringify(data.record,null,2);download.disabled=false;
+  const state=data.record.model_status;
+  status.textContent=state==='response_received'?'Provider response received. Commentary requires human review.':
+   state==='not_requested'?'Descriptors calculated. No model request was made.':'Descriptors available; model review unavailable. Inspect the record for details.';
+  if(state==='unavailable'||state==='rejected')status.className='error';
+ }catch(error){status.className='error';status.textContent=error.message;summary.textContent='No replacement result was generated.'}
+ finally{run.disabled=false}
+});
+download.addEventListener('click',()=>{
+ if(!lastRecord)return;
+ const url=URL.createObjectURL(new Blob([JSON.stringify(lastRecord,null,2)],{type:'application/json'}));
+ const link=document.createElement('a');link.href=url;link.download='resistai-evidence-record.json';link.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+</script></body></html>
